@@ -36,8 +36,8 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 ### 2. リポジトリを取ってくる
 
 ```bash
-git clone https://github.com/<あなたのユーザー名>/alucad.git
-cd alucad
+git clone https://github.com/atsushi-yamakawa-design/my-cad-tool.git
+cd my-cad-tool
 ```
 
 ### 3. 依存パッケージを入れる
@@ -49,7 +49,7 @@ Python 本体も含めて、`.venv/` フォルダに全部入る（PCの他の�
 
 ### 4. VS Code の準備
 
-1. VS Code で `alucad` フォルダを開く
+1. VS Code で `my-cad-tool` フォルダを開く
 2. 拡張機能（左の四角いアイコン）で **「OCP CAD Viewer」**（作者 bernhard-42）をインストール
 3. 拡張機能 **「Python」**（Microsoft）も入っていなければインストール
 4. コマンドパレット（macOS: `Cmd+Shift+P` / Windows: `Ctrl+Shift+P`）→ **「Python: Select Interpreter」** → `./.venv/bin/python`（Windows は `.\.venv\Scripts\python.exe`）を選ぶ
