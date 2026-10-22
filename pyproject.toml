@@ -1,0 +1,23 @@
+[project]
+name = "alucad"
+version = "0.1.0"
+description = "Code CAD for aluminum extrusion frames and laser-cut panels (build123d)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "build123d>=0.13.0,<0.14",  # APIが版で変わるので、上げるときは確認してから
+    "ezdxf>=1.4.5",
+    "ocp-vscode>=4.2.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
