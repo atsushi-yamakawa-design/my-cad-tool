@@ -33,6 +33,11 @@ class Part:
     def named(self, name: str) -> Part:
         return replace(self, name=name)
 
+    def with_params(self, **params) -> Part:
+        """パラメータの一部を変えた Part を返す（位置・回転・名前はそのまま）。"""
+        new = make(self.type, **{**self.params, **params})
+        return replace(new, position=self.position, rotation=self.rotation, name=self.name)
+
     # ---- 形状 ----
     @property
     def location(self) -> Location:
@@ -50,6 +55,24 @@ class Part:
     def sketch(self) -> dict[str, Sketch | Shape]:
         """板パーツの2Dスケッチ（レイヤー別・ローカル座標）。DXFはここから作る。"""
         return self.geometry.layers
+
+    @property
+    def mat(self) -> str | None:
+        """材料キー（板パーツのみ）。"""
+        return self.params.get("mat")
+
+    def expand(self) -> list[Part]:
+        """キットを中身の Part（ワールド座標）に展開する。キットでなければ [self]。"""
+        children = self.geometry.children
+        if not children:
+            return [self]
+        out = []
+        for c in children:
+            loc = self.location * c.location
+            name = f"{self.name}/{c.name}" if self.name else c.name
+            world = replace(c, position=_t(loc.position), rotation=_t(loc.orientation), name=name)
+            out += world.expand()
+        return out
 
     @property
     def is_flat(self) -> bool:

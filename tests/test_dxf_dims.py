@@ -72,7 +72,7 @@ def test_layers_and_no_kerf_on_engrave_score(tmp_path):
 def test_multiple_parts_side_by_side(tmp_path):
     a = panel(100, 60)
     b = panel(80, 50)
-    _, msp = _read(export_dxf([a, b], tmp_path / "a.dxf", gap=5))
+    _, msp = _read(export_dxf([a, b], tmp_path / "a.dxf", compensate=False, gap=5))
     assert _layer_size(msp, "cut") == (100 + 5 + 80, 60)
 
 

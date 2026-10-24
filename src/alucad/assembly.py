@@ -15,8 +15,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from build123d import Compound
-
 from .part import Part
 
 FORMAT_VERSION = 1
@@ -45,23 +43,22 @@ class Assembly:
         return len(self.parts)
 
     def __getitem__(self, name: str) -> Part:
+        """id で部品を取り出す。キットの中身は "stand/top" のように「キットのid/中身の名前」で取れる。"""
         for p in self.parts:
+            if p.name == name:
+                return p
+        for p in self.expanded():
             if p.name == name:
                 return p
         raise KeyError(name)
 
-    def flat_parts(self) -> list[Part]:
-        """レーザーで切る板パーツだけ。"""
-        return [p for p in self.parts if p.is_flat]
+    def expanded(self) -> list[Part]:
+        """キットを中身に展開した、全部品のリスト（ワールド座標）。"""
+        return [q for p in self.parts for q in p.expand()]
 
-    def compound(self) -> Compound:
-        """全体の3D形状（STEP書き出しや表示用）。"""
-        children = []
-        for p in self.parts:
-            s = p.solid()
-            s.label = p.name
-            children.append(s)
-        return Compound(children=children, label=self.name)
+    def flat_parts(self) -> list[Part]:
+        """レーザーで切る板パーツだけ（キットの中身も含む）。"""
+        return [p for p in self.expanded() if p.is_flat]
 
     # ---- JSON ----
     def to_dict(self) -> dict:

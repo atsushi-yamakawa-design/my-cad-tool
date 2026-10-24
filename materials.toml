@@ -1,0 +1,27 @@
+# 材料と加工機の設定。単位は mm。
+#
+# kerf（カーフ）= レーザーの切断幅。examples/kerf_test.py でテストピースを切って実測し、ここを更新する。
+# color は 3D表示の色（色名か #RRGGBB）。
+# 下の kerf は FLUX beamo 30W の一般的な目安で、実測前の仮の値。
+
+[machine]
+name = "FLUX beamo 30W"
+bed = [300, 210]  # 加工エリア（幅, 奥行き）
+
+[materials.mdf3]
+label = "MDF 3mm"
+t = 3.0
+kerf = 0.20
+color = "burlywood"
+
+[materials.acrylic3]
+label = "アクリル 3mm"
+t = 3.0
+kerf = 0.15
+color = "#9fd3ef"
+
+[materials.acrylic5]
+label = "アクリル 5mm"
+t = 5.0
+kerf = 0.20
+color = "#7fbfe6"

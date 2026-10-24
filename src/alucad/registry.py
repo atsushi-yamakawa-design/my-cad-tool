@@ -12,7 +12,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
-from build123d import Shape, Sketch
+from build123d import Compound, Shape, Sketch
 
 
 @dataclass(frozen=True)
@@ -61,6 +61,16 @@ class Geometry:
     solid: Shape
     layers: dict[str, Sketch | Shape] = field(default_factory=dict)
     anchors: list[Anchor] = field(default_factory=list)
+    children: list = field(default_factory=list)  # キット（複合コンポーネント）の中身の Part
+
+    @classmethod
+    def kit(cls, children: list, anchors: list[Anchor] | None = None) -> Geometry:
+        """中身の Part（キットのローカル座標で配置済み）からキットの形状を作る。"""
+        return cls(
+            solid=Compound([c.solid() for c in children]),
+            anchors=anchors or [],
+            children=children,
+        )
 
 
 @dataclass

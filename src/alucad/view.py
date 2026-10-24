@@ -5,14 +5,12 @@ from __future__ import annotations
 import os
 
 from .assembly import Assembly
+from .export import part_color
 from .part import Part
-from .registry import get
-
-COLORS = {"frame": "silver", "plate": "burlywood"}
 
 
 def show(obj: Assembly | Part | list[Part]) -> None:
-    """アセンブリや部品を OCP CAD Viewer に表示する。
+    """アセンブリや部品を OCP CAD Viewer に表示する。キットは中身に展開して表示する。
 
     VS Code で OCP CAD Viewer が開いていないと表示できない。
     環境変数 ALUCAD_NO_SHOW=1 を付けて実行すると表示を飛ばす（ファイル書き出しだけしたいとき）。
@@ -20,16 +18,12 @@ def show(obj: Assembly | Part | list[Part]) -> None:
     if os.environ.get("ALUCAD_NO_SHOW") == "1":
         return
     if isinstance(obj, Part):
-        parts = [obj]
-    else:
-        parts = list(obj)
+        obj = [obj]
+    parts = [q for p in obj for q in p.expand()]
 
-    solids, names, colors = [], [], []
-    for i, p in enumerate(parts):
-        solids.append(p.solid())
-        names.append(p.name or f"{p.type}{i + 1}")
-        colors.append(COLORS.get(get(p.type).category, "gray"))
-
+    solids = [p.solid() for p in parts]
+    names = [p.name or f"{p.type}{i + 1}" for i, p in enumerate(parts)]
+    colors = [part_color(p) for p in parts]
     try:
         from ocp_vscode import show as ocp_show
 

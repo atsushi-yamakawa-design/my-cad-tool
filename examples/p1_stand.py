@@ -4,8 +4,8 @@
 出力: examples/out/p1_stand.json（アセンブリ）
       examples/out/p1_stand_top.dxf（天板）
 
-Phase 1 では天板の穴位置を手で計算している。Phase 2 で frame_holes() に置き換える。
-フレーム同士の固定（ブラケット）も Phase 2。
+ここでは部品を1つずつ手で組み、天板の穴位置も手で計算している。
+同じ台を、穴の自動計算・ブラケットつきのキット1行で作るのが examples/p2_stand.py。
 """
 
 from pathlib import Path
