@@ -11,3 +11,6 @@ wheels/
 
 # alucad の出力（examples/out/, designs/out/ など）
 out/
+
+# macOS
+.DS_Store
