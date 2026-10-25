@@ -143,12 +143,45 @@ def _run_gui(port: int, designs: str | None, open_browser: bool) -> int:
 
     from .gui.server import create_app
 
+    for p in range(port, port + 20):
+        state = _port_state(p)
+        if state == "alucad":  # もう GUI が動いている → それを開くだけ
+            url = f"http://127.0.0.1:{p}"
+            print(f"GUIエディタはすでに起動しています: {url}")
+            print("（止めたいときは、起動したターミナルで Ctrl+C）")
+            if open_browser:
+                webbrowser.open(url)
+            return 0
+        if state == "free":
+            if p != port:
+                print(f"ポート {port} はほかのアプリが使っているので、{p} で起動します")
+            port = p
+            break
+    else:
+        print(f"ポート {port}〜{port + 19} がすべて使用中です。--port で別の番号を指定してください", file=sys.stderr)
+        return 1
+
     url = f"http://127.0.0.1:{port}"
     print(f"GUIエディタ: {url}  （終了は Ctrl+C）")
     if open_browser:
         threading.Timer(1.0, webbrowser.open, args=(url,)).start()
     uvicorn.run(create_app(Path(designs) if designs else None), host="127.0.0.1", port=port, log_level="warning")
     return 0
+
+
+def _port_state(port: int) -> str:
+    """"free"（空き）/ "alucad"（alucad の GUI が動いている）/ "busy"（ほかのアプリ）"""
+    import socket
+    import urllib.request
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if s.connect_ex(("127.0.0.1", port)) != 0:
+            return "free"
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/watch", timeout=1) as r:
+            return "alucad" if b'"parts"' in r.read() else "busy"
+    except Exception:
+        return "busy"
 
 
 def _part(args) -> int:

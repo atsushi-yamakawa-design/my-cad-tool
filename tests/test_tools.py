@@ -85,3 +85,16 @@ def test_cli_rejects_unknown_format(tmp_path):
     src = Assembly("x", [panel(50, 50)]).save(tmp_path / "x.json")
     with pytest.raises(SystemExit):
         main(["build", str(src), "--only", "pdf"])
+
+
+def test_port_state():
+    import socket
+
+    from alucad.cli import _port_state
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        s.listen()
+        port = s.getsockname()[1]
+        assert _port_state(port) == "busy"  # alucad 以外が使っている
+    assert _port_state(port) == "free"
