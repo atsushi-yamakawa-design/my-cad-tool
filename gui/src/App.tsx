@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { BottomPanel } from "./components/BottomPanel";
 import { Palette } from "./components/Palette";
 import { PropertyPanel } from "./components/PropertyPanel";
@@ -11,6 +11,7 @@ export function App() {
   const ready = useStore((s) => s.catalog !== null);
   const conflict = useStore((s) => s.conflict);
   const name = useStore((s) => s.name);
+  const [bottomCollapsed, setBottomCollapsed] = useState(false);
 
   // 1秒ごとに、デザインファイルと parts/ が外で変わっていないか確認する（Claude Code などが書き換えたとき用）
   useEffect(() => {
@@ -72,12 +73,12 @@ export function App() {
   }, []);
 
   return (
-    <div className="app">
+    <div className={`app ${bottomCollapsed ? "bottom-collapsed" : ""}`}>
       <Toolbar />
       <Palette />
       <main className="viewport">{ready && <Viewport />}</main>
       <PropertyPanel />
-      <BottomPanel />
+      <BottomPanel collapsed={bottomCollapsed} onToggle={setBottomCollapsed} />
       {conflict && (
         <div className="conflict">
           <span>

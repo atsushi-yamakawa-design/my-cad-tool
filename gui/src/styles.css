@@ -19,15 +19,26 @@
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; height: 100%; }
 
+/* 画面の大きさに合わせて伸び縮みするレイアウト。
+   minmax(0, 1fr): グリッドの列・行は標準では「中身より狭くなれない」ので、3Dビュー（canvas）が
+   一度広がると縮まなくなる。0 まで縮んでいいことにする */
 .app {
+  --bottom-h: clamp(140px, 24vh, 220px);
   display: grid;
   height: 100vh;
-  grid-template-columns: 180px 1fr 300px;
-  grid-template-rows: 44px 1fr 190px;
+  overflow: hidden;
+  grid-template-columns: clamp(140px, 13vw, 200px) minmax(0, 1fr) clamp(250px, 24vw, 320px);
+  grid-template-rows: 44px minmax(0, 1fr) var(--bottom-h);
   grid-template-areas:
     "top top top"
     "palette view props"
     "palette bottom props";
+}
+.app.bottom-collapsed { --bottom-h: 34px; }
+@media (max-width: 900px) {
+  .app { --bottom-h: clamp(120px, 20vh, 180px); }
+  .toolbar .design-name { width: 100px; }
+  .toolbar button { padding: 4px 7px; }
 }
 
 button, select, input, textarea { font: inherit; color: inherit; }
@@ -59,6 +70,9 @@ textarea.bad { border-color: var(--danger); }
 /* ---- ツールバー ---- */
 .toolbar {
   grid-area: top;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -101,7 +115,7 @@ textarea.bad { border-color: var(--danger); }
 .palette-item:hover { border-color: var(--line); }
 
 /* ---- 3D ---- */
-.viewport { grid-area: view; position: relative; min-height: 0; }
+.viewport { grid-area: view; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
 
 /* ---- プロパティ ---- */
 .props { grid-area: props; border-left: 1px solid var(--line); padding: 10px 12px; }
@@ -142,10 +156,12 @@ textarea.bad { border-color: var(--danger); }
 .holes > .small { align-self: flex-start; margin-top: 2px; }
 
 /* ---- 下のパネル ---- */
-.bottom { grid-area: bottom; border-top: 1px solid var(--line); display: flex; flex-direction: column; }
+.bottom { grid-area: bottom; min-width: 0; min-height: 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; }
 .tabs { display: flex; gap: 2px; padding: 6px 10px 0; border-bottom: 1px solid var(--line); }
 .tabs button { border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 4px 10px; }
 .tabs button.on { border-bottom-color: var(--accent); font-weight: 600; }
+.tabs button.collapse { margin-left: auto; color: var(--muted); font-size: 10px; }
+.bottom-collapsed .bottom-body { display: none; }
 .bottom-body { padding: 8px 12px; overflow: auto; flex: 1; }
 .issues { list-style: none; margin: 0; padding: 0; }
 .issues li { padding: 3px 0; cursor: pointer; }
@@ -162,7 +178,7 @@ textarea.bad { border-color: var(--danger); }
 .notice {
   position: fixed;
   left: 50%;
-  bottom: 210px;
+  bottom: calc(var(--bottom-h, 190px) + 16px);
   transform: translateX(-50%);
   background: #1f2328;
   color: white;

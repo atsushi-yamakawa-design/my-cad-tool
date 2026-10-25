@@ -7,8 +7,15 @@ import type { Bom } from "../types";
 
 type Tab = "check" | "bom";
 
-export function BottomPanel() {
+export function BottomPanel({ collapsed, onToggle }: { collapsed: boolean; onToggle: (v: boolean) => void }) {
   const [tab, setTab] = useState<Tab>("check");
+  const choose = (t: Tab) => {
+    if (t === tab) onToggle(!collapsed); // 選択中のタブをもう一度押すと畳む・開く
+    else {
+      setTab(t);
+      onToggle(false);
+    }
+  };
   const asm = useStore((s) => s.asm);
   const issues = useStore((s) => s.issues);
   const setIssues = useStore((s) => s.setIssues);
@@ -33,11 +40,14 @@ export function BottomPanel() {
   return (
     <section className="panel bottom">
       <nav className="tabs">
-        <button className={tab === "check" ? "on" : ""} onClick={() => setTab("check")}>
+        <button className={tab === "check" && !collapsed ? "on" : ""} onClick={() => choose("check")}>
           チェック {issues.length ? `(${issues.length})` : ""}
         </button>
-        <button className={tab === "bom" ? "on" : ""} onClick={() => setTab("bom")}>
+        <button className={tab === "bom" && !collapsed ? "on" : ""} onClick={() => choose("bom")}>
           部品表
+        </button>
+        <button className="collapse" onClick={() => onToggle(!collapsed)} title={collapsed ? "パネルを開く" : "パネルを畳む"}>
+          {collapsed ? "▲" : "▼"}
         </button>
       </nav>
       <div className="bottom-body">
