@@ -6,6 +6,8 @@ Python は読める程度。**チャットで頼まれた設計を、デザイ�
 
 ## まず知っておくこと
 
+- **これまでの経緯・決めたこと・次にやることは `docs/HANDOFF.md`**。新しい会話の最初に読む
+
 - 単位はすべて **mm**、座標は **Z が上**（build123d と同じ）。回転は XYZ オイラー角（度、Intrinsic XYZ ＝ three.js の 'XYZ'）
 - 持ち主はたいてい **GUI（`uv run alucad gui`）をブラウザで開いたまま**会話している。
   `designs/*.json` と `parts/*.py` を保存すると、GUI は1秒ほどで自動的に読み込み直す。
