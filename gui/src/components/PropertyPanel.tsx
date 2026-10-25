@@ -102,7 +102,10 @@ function ParamField({
   onChange: (v: unknown) => void;
 }) {
   const materials = useStore((s) => s.catalog?.materials);
+  const filaments = useStore((s) => s.catalog?.filaments);
   const label = def.label || def.name;
+  const choiceLabel = (c: string) =>
+    (def.name.endsWith("mat") && materials?.[c]?.label) || (def.name === "filament" && filaments?.[c]?.label) || c;
   let input: React.ReactNode;
 
   if (def.type === "float" || def.type === "int") {
@@ -123,7 +126,7 @@ function ParamField({
       <select value={String(value)} onChange={(e) => onChange(e.target.value)}>
         {def.choices.map((c) => (
           <option key={String(c)} value={String(c)}>
-            {def.name.endsWith("mat") && materials?.[String(c)] ? materials[String(c)].label : String(c)}
+            {choiceLabel(String(c))}
           </option>
         ))}
       </select>

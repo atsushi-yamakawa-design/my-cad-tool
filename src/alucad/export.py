@@ -1,4 +1,4 @@
-"""書き出し（DXF / STEP / GLB）。
+"""書き出し（DXF / STEP / GLB / STL）。
 
 DXFのレイヤー:
   cut     … 切断（赤）。カーフ補正がかかるのはこのレイヤーだけ
@@ -12,11 +12,12 @@ build123d の offset() に穴あきの面を渡すと、この両方が1回で�
 
 from __future__ import annotations
 
+import json
 import warnings
 from collections import defaultdict
 from pathlib import Path
 
-from build123d import Color, Compound, ExportDXF, Kind, Pos, Rot, Shape, Unit, export_gltf, offset
+from build123d import Color, Compound, ExportDXF, Kind, Pos, Rot, Shape, Unit, export_gltf, export_stl, offset
 from build123d import export_step as _b3d_export_step
 from build123d.exporters import ColorIndex
 
@@ -24,7 +25,6 @@ from . import materials
 from .assembly import Assembly
 from .nest import shelf_pack
 from .part import Part
-from .registry import get
 
 LAYER_COLORS = {
     "cut": ColorIndex.RED,
@@ -177,11 +177,48 @@ def to_compound(obj: Part | list[Part] | Assembly, name: str = "assembly") -> Co
 
 
 def part_color(p: Part) -> str:
-    if get(p.type).category == "frame":
+    if p.category == "frame":
         return FRAME_COLOR
+    if p.is_print:
+        f = materials.FILAMENTS.get(p.params.get("filament", ""))
+        return f.color if f else "#e8e8e8"
     if p.mat:
         return materials.get(p.mat).color
     return "gray"
+
+
+def print_groups(obj: Part | list[Part] | Assembly) -> list[tuple[Part, int]]:
+    """3Dプリント部品を「同じ形（種類＋パラメータ）」ごとにまとめる。[(代表の部品, 個数), ...]"""
+    groups: dict[str, list[Part]] = {}
+    for p in _parts(obj):
+        if p.is_print:
+            groups.setdefault(p.type + json.dumps(p.params, sort_keys=True), []).append(p)
+    return [(ps[0], len(ps)) for ps in groups.values()]
+
+
+def export_prints(obj: Part | list[Part] | Assembly, out_dir: str | Path, prefix: str | None = None) -> list[Path]:
+    """3Dプリント部品を STL（mm）で書き出す。同じ形は1ファイルにまとめ、ファイル名に個数を付ける。
+
+    ファイル名: <prefix>_<種類>[_<番号>]_x<個数>.stl（向きはモデルのまま＝z=0 がベッド側）
+    """
+    if prefix is None:
+        prefix = obj.name if isinstance(obj, Assembly) else "parts"
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    groups = print_groups(obj)
+    per_type: dict[str, int] = defaultdict(int)
+    for p, _ in groups:
+        per_type[p.type] += 1
+    seen: dict[str, int] = defaultdict(int)
+    paths = []
+    for p, n in groups:
+        seen[p.type] += 1
+        num = f"_{seen[p.type]}" if per_type[p.type] > 1 else ""
+        path = out / f"{prefix}_{p.type}{num}_x{n}.stl"
+        if not export_stl(p.geometry.solid, path, tolerance=0.01, angular_tolerance=0.2):
+            raise RuntimeError(f"STLの書き出しに失敗しました: {path}")
+        paths.append(path)
+    return paths
 
 
 def export_step(obj: Part | list[Part] | Assembly, path: str | Path) -> Path:

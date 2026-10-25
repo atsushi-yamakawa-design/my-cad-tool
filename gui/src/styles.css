@@ -172,3 +172,27 @@ textarea.bad { border-color: var(--danger); }
   max-width: 70vw;
 }
 .notice.error { background: var(--danger); }
+
+.tag {
+  font-size: 10px;
+  color: var(--accent);
+  background: #e8f0fe;
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-left: 6px;
+}
+.conflict {
+  position: fixed;
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: #fff8e6;
+  border: 1px solid #f0c36d;
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+  z-index: 10;
+}

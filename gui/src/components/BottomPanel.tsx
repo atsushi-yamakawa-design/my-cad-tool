@@ -84,6 +84,20 @@ export function BottomPanel() {
                 </tbody>
               </table>
             )}
+            {bom.prints.length > 0 && (
+              <table>
+                <caption>3Dプリント部品</caption>
+                <tbody>
+                  {bom.prints.map((p, i) => (
+                    <tr key={i}>
+                      <td>{p.label}</td>
+                      <td>{p.filament}</td>
+                      <td className="r">× {p.qty}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
             {(bom.bolts.length > 0 || bom.joints.length > 0) && (
               <table>
                 <caption>ネジ類（目安）</caption>

@@ -1,7 +1,7 @@
 // 画面の状態。アセンブリJSONが唯一の正で、Undo/Redo は JSON のスナップショットで行う
 
 import { create } from "zustand";
-import { api } from "./api";
+import { api, ApiError, clearMeshCache } from "./api";
 import type { AssemblySpec, Catalog, Issue, PartSpec } from "./types";
 
 const HISTORY_LIMIT = 200;
@@ -36,6 +36,14 @@ interface State {
   future: AssemblySpec[];
   issues: Issue[];
   notice: { text: string; kind: "info" | "error" } | null;
+  stamp: string | null; // 開いているデザインファイルの版の印（読み込み・保存したとき）
+  partsStamp: string | null; // parts/ フォルダの版の印
+  meshEpoch: number; // 形状を取り直すたびに増やす
+  conflict: boolean; // 外部でファイルが変わったが、こちらにも未保存の変更がある
+
+  poll: () => Promise<void>;
+  reloadFromDisk: () => Promise<void>;
+  keepMine: () => void;
 
   init: () => Promise<void>;
   openDesign: (name: string) => Promise<void>;
@@ -69,6 +77,10 @@ export const useStore = create<State>((set, get) => ({
   future: [],
   issues: [],
   notice: null,
+  stamp: null,
+  partsStamp: null,
+  meshEpoch: 0,
+  conflict: false,
 
   init: async () => {
     const [catalog, { designs }] = await Promise.all([api.catalog(), api.designs()]);
@@ -78,17 +90,71 @@ export const useStore = create<State>((set, get) => ({
 
   openDesign: async (name) => {
     try {
-      const asm = await api.load(name);
-      set({ asm, name, selected: null, dirty: false, past: [], future: [] });
+      const { assembly, stamp } = await api.load(name);
+      set({ asm: assembly, name, stamp, selected: null, dirty: false, past: [], future: [], conflict: false });
     } catch (e) {
       get().notify((e as Error).message, "error");
     }
   },
 
   newDesign: () =>
-    set({ asm: emptyAssembly(), name: "untitled", selected: null, dirty: false, past: [], future: [] }),
+    set({
+      asm: emptyAssembly(),
+      name: "untitled",
+      stamp: null,
+      selected: null,
+      dirty: false,
+      past: [],
+      future: [],
+      conflict: false,
+    }),
 
-  setName: (name) => set({ name, dirty: true }),
+  /** 1秒ごとに呼ぶ。デザインファイルや parts/ が外で変わっていたら追従する */
+  poll: async () => {
+    const s = get();
+    const w = await api.watch(s.name);
+
+    if (s.partsStamp !== null && w.parts !== s.partsStamp) {
+      clearMeshCache();
+      const catalog = await api.catalog();
+      set({ catalog, meshEpoch: get().meshEpoch + 1 });
+      const errs = Object.entries(w.parts_errors);
+      if (errs.length) get().notify(`parts/${errs[0][0]} を読み込めません: ${errs[0][1]}`, "error");
+      else get().notify("parts/ の部品を読み込み直しました");
+    }
+    set({ partsStamp: w.parts });
+
+    // 開いているデザインのファイルが外で書き換わった
+    if (s.stamp && w.design && w.design !== s.stamp && !s.conflict) {
+      if (s.dirty) set({ conflict: true });
+      else {
+        await get().reloadFromDisk();
+        get().notify(`${s.name}.json が外部で変更されたので読み込み直しました`);
+      }
+    }
+  },
+
+  reloadFromDisk: async () => {
+    const { name, selected } = get();
+    const { assembly, stamp } = await api.load(name);
+    set({
+      asm: assembly,
+      stamp,
+      dirty: false,
+      conflict: false,
+      past: [...get().past, get().asm].slice(-HISTORY_LIMIT), // 読み込み直しも Undo で戻せる
+      future: [],
+      selected: assembly.parts.some((p) => p.id === selected) ? selected : null,
+    });
+  },
+
+  /** 外部の変更を無視して、こちらの内容を残す（次の保存で上書きする） */
+  keepMine: () => {
+    void api.watch(get().name).then((w) => set({ stamp: w.design, conflict: false }));
+  },
+
+  // 名前を変えると別のファイルになるので、版の印はリセット
+  setName: (name) => set({ name, dirty: true, stamp: null, conflict: false }),
 
   save: async () => {
     const { name, asm } = get();
@@ -96,13 +162,17 @@ export const useStore = create<State>((set, get) => ({
       get().notify("デザイン名に使えるのは英数字・_・- だけです", "error");
       return false;
     }
+    if (!get().stamp && get().designs.includes(name) && !window.confirm(`${name}.json はすでにあります。上書きしますか？`)) {
+      return false;
+    }
     try {
-      await api.save(name, { ...asm, name });
+      const res = await api.save(name, { ...asm, name }, get().stamp);
       const { designs } = await api.designs();
-      set({ dirty: false, designs, asm: { ...asm, name } });
+      set({ dirty: false, designs, asm: { ...asm, name }, stamp: res.stamp });
       get().notify(`保存しました: designs/${name}.json`);
       return true;
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409) set({ conflict: true });
       get().notify((e as Error).message, "error");
       return false;
     }
@@ -119,12 +189,13 @@ export const useStore = create<State>((set, get) => ({
       return;
     }
     try {
-      const res = await api.build(name, { ...asm, name });
+      const res = await api.build(name, { ...asm, name }, get().stamp);
       const { designs } = await api.designs();
-      set({ dirty: false, designs });
+      set({ dirty: false, designs, stamp: res.stamp });
       const files = res.files.map((f) => f.split("/").pop()).join(", ");
       get().notify(`designs/out/ に書き出しました: ${files}`);
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409) set({ conflict: true });
       get().notify((e as Error).message, "error");
     }
   },

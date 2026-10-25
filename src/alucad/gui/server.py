@@ -8,17 +8,19 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import warnings
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .. import Assembly, Part, bom, catalog, check, make, materials
+from .. import Assembly, Part, bom, catalog, check, make, materials, userparts
 from ..cli import build as build_files
+from ..export import part_color
 
 STATIC = Path(__file__).parent / "static"
 DEFAULT_DESIGNS = Path(__file__).resolve().parents[3] / "designs"
@@ -45,6 +47,21 @@ def create_app(designs_dir: Path | None = None) -> FastAPI:
     designs = Path(designs_dir) if designs_dir else DEFAULT_DESIGNS
     app = FastAPI(title="alucad")
 
+    @app.middleware("http")
+    async def reload_user_parts(request: Request, call_next):
+        """parts/ のファイルが変わっていたら、部品を登録し直してから処理する。"""
+        if request.url.path.startswith("/api/"):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")  # 読み込みエラーは /api/watch で画面に伝える
+                userparts.load()
+        return await call_next(request)
+
+    # ---- 変更の見張り（画面が1秒ごとに問い合わせる） ----
+    @app.get("/api/watch")
+    def watch(design: str = ""):
+        stamp = _stamp(_design_path(designs, design)) if design and NAME_RE.match(design) else None
+        return {"design": stamp, "parts": userparts.stamp(), "parts_errors": userparts.errors()}
+
     # ---- 部品の定義 ----
     @app.get("/api/catalog")
     def get_catalog():
@@ -54,6 +71,7 @@ def create_app(designs_dir: Path | None = None) -> FastAPI:
                 k: {"label": m.label, "t": m.t, "kerf": m.kerf, "color": m.color}
                 for k, m in materials.MATERIALS.items()
             },
+            "filaments": {k: {"label": f.label, "color": f.color} for k, f in materials.FILAMENTS.items()},
             "bed": list(materials.BED),
         }
 
@@ -69,7 +87,7 @@ def create_app(designs_dir: Path | None = None) -> FastAPI:
         children = p.geometry.children
         if children:
             return {"kit": True, "children": [_part_dict(c) for c in children]}
-        return {"kit": False, "category": _category(p), "mat": p.mat, **_tessellate(p)}
+        return {"kit": False, "category": p.category, "mat": p.mat, "color": part_color(p), **_tessellate(p)}
 
     @app.post("/api/explode")
     def explode(spec: PartSpec):
@@ -100,23 +118,28 @@ def create_app(designs_dir: Path | None = None) -> FastAPI:
         path = _design_path(designs, name)
         if not path.exists():
             raise HTTPException(404, f"{name}.json がありません")
-        return Assembly.load(path).to_dict()
+        return {"assembly": Assembly.load(path).to_dict(), "stamp": _stamp(path)}
 
     @app.put("/api/designs/{name}")
-    def save_design(name: str, spec: AssemblySpec):
+    def save_design(name: str, spec: AssemblySpec, base: str = ""):
+        """保存する。base（読み込んだときの stamp）と今のファイルが違えば、外で変更されたとみなして止める。"""
+        path = _design_path(designs, name)
+        current = _stamp(path)
+        if base and current and base != current:
+            raise HTTPException(409, f"{name}.json は外部で変更されています（Claude や別の画面など）")
         asm = _assembly(spec)
         asm.name = name
-        path = asm.save(_design_path(designs, name))
-        return {"saved": str(path)}
+        asm.save(path)
+        return {"saved": str(path), "stamp": _stamp(path)}
 
     @app.post("/api/designs/{name}/build")
-    def build_design(name: str, spec: AssemblySpec):
-        """保存してから DXF / STEP / GLB / 部品表 を designs/out/ に書き出す。"""
-        save_design(name, spec)
+    def build_design(name: str, spec: AssemblySpec, base: str = ""):
+        """保存してから DXF / STL / STEP / GLB / 部品表 を designs/out/ に書き出す。"""
+        saved = save_design(name, spec, base)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             paths = build_files(_design_path(designs, name))
-        return {"files": [str(p) for p in paths], "warnings": [str(w.message) for w in caught]}
+        return {"files": [str(p) for p in paths], "warnings": [str(w.message) for w in caught], "stamp": saved["stamp"]}
 
     # ---- 画面（ビルド済みの静的ファイル） ----
     if STATIC.exists():
@@ -158,10 +181,11 @@ def _part_dict(p: Part, strip: str = "") -> dict:
     return d
 
 
-def _category(p: Part) -> str:
-    from ..registry import get
-
-    return get(p.type).category
+def _stamp(path: Path) -> str | None:
+    """ファイルの版の印（中身が変わると変わる）。ファイルがなければ None。"""
+    if not path.exists():
+        return None
+    return hashlib.sha1(path.read_bytes()).hexdigest()[:12]
 
 
 def _tessellate(p: Part) -> dict:

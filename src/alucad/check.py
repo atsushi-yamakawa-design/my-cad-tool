@@ -1,6 +1,6 @@
 """加工前チェック。レーザーで失敗しやすい形と、組み立てで困る配置を見つける。
 
-  error   … このまま切ると確実に困る（加工エリアに入らない、部品同士がめり込んでいる）
+  error   … このまま切ると確実に困る（加工エリア・造形サイズに入らない、部品同士がめり込んでいる）
   warning … 切れるが壊れやすい・燃えやすい（穴が縁に近い、細すぎる部分がある）
 """
 
@@ -38,6 +38,8 @@ def check(obj: Part | list[Part] | Assembly) -> list[Issue]:
     for i, p in enumerate(parts):
         if p.is_flat:
             issues += _check_plate(p, p.name or f"{p.type}{i + 1}")
+        elif p.is_print:
+            issues += _check_print(p, p.name or f"{p.type}{i + 1}")
     issues += _check_overlaps(parts)
     return issues
 
@@ -73,6 +75,17 @@ def _check_plate(p: Part, name: str) -> list[Issue]:
     if _has_thin_part(cut, MIN_WIDTH / 2):
         out.append(Issue("warning", name, f"幅 {MIN_WIDTH}mm 未満の細い部分があります（燃えたり折れたりしやすい）"))
     return out
+
+
+def _check_print(p: Part, name: str) -> list[Issue]:
+    """3Dプリント部品が造形サイズに入るか（materials.toml に [printer] bed があるときだけ）。"""
+    bed = materials.PRINT_BED
+    if bed is None:
+        return []
+    s = p.geometry.solid.bounding_box().size
+    if s.X > bed[0] or s.Y > bed[1] or s.Z > bed[2]:
+        return [Issue("error", name, f"{s.X:.0f}×{s.Y:.0f}×{s.Z:.0f}mm はプリンタの造形サイズ {bed[0]:.0f}×{bed[1]:.0f}×{bed[2]:.0f}mm に入りません")]
+    return []
 
 
 def _has_thin_part(sketch, d: float) -> bool:

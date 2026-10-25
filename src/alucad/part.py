@@ -75,6 +75,15 @@ class Part:
         return out
 
     @property
+    def category(self) -> str:
+        return registry.get(self.type).category
+
+    @property
+    def is_print(self) -> bool:
+        """3Dプリントする部品かどうか。"""
+        return self.category == "print"
+
+    @property
     def is_flat(self) -> bool:
         """レーザーで切る板パーツかどうか。"""
         return "cut" in self.geometry.layers

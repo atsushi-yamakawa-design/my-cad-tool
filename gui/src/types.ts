@@ -33,7 +33,9 @@ export interface ParamDef {
 export interface ComponentDef {
   name: string;
   label: string;
-  category: "frame" | "plate" | "kit" | string;
+  category: "frame" | "plate" | "print" | "kit" | string;
+  description: string;
+  user: boolean; // parts/ フォルダの自作部品
   params: ParamDef[];
 }
 
@@ -47,11 +49,12 @@ export interface MaterialDef {
 export interface Catalog {
   components: ComponentDef[];
   materials: Record<string, MaterialDef>;
+  filaments: Record<string, { label: string; color: string }>;
   bed: [number, number];
 }
 
 export type MeshData =
-  | { kit: false; category: string; mat: string | null; vertices: number[]; indices: number[] }
+  | { kit: false; category: string; mat: string | null; color: string; vertices: number[]; indices: number[] }
   | { kit: true; children: PartSpec[] };
 
 export interface Issue {
@@ -67,4 +70,11 @@ export interface Bom {
   sheets: Record<string, number>;
   bolts: { size: string; length: number; qty: number }[];
   joints: { kind: string; size: string; profile: string; qty: number }[];
+  prints: { label: string; filament: string; size: [number, number, number]; qty: number }[];
+}
+
+export interface WatchState {
+  design: string | null; // デザインファイルの版の印
+  parts: string; // parts/ フォルダの版の印
+  parts_errors: Record<string, string>;
 }

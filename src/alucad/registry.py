@@ -80,17 +80,22 @@ class ComponentDef:
     category: str
     params: list[Param]
     build: Callable[..., Geometry]
+    source: str = ""  # parts/ フォルダの部品なら、そのファイルのパス
+    description: str = ""
 
     def to_dict(self) -> dict:
         return {
             "name": self.name,
             "label": self.label,
             "category": self.category,
+            "description": self.description,
+            "user": bool(self.source),
             "params": [p.to_dict() for p in self.params],
         }
 
 
 REGISTRY: dict[str, ComponentDef] = {}
+_current_source = ""  # parts/ を読み込み中のファイル（userparts が設定する）
 
 
 def component(name: str, *, label: str, category: str, params: list[Param]):
@@ -107,7 +112,10 @@ def component(name: str, *, label: str, category: str, params: list[Param]):
             raise TypeError(
                 f"{name}: 関数の引数 {sig_names} と Param 定義 {meta_names} が一致しません"
             )
-        REGISTRY[name] = ComponentDef(name, label, category, params, fn)
+        if name in REGISTRY and REGISTRY[name].source != _current_source:
+            raise ValueError(f"部品名 {name!r} はすでに使われています（{REGISTRY[name].source or 'alucad 本体'}）")
+        doc = inspect.getdoc(fn) or ""
+        REGISTRY[name] = ComponentDef(name, label, category, params, fn, _current_source, doc)
         return fn
 
     return deco

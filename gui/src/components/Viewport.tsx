@@ -51,7 +51,6 @@ function PartNode({ spec, rootId }: { spec: PartSpec; rootId: string }) {
   const data = useMesh(spec.type, spec.params);
   const selected = useStore((s) => s.selected === rootId);
   const select = useStore((s) => s.select);
-  const materials = useStore((s) => s.catalog?.materials);
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
@@ -65,7 +64,7 @@ function PartNode({ spec, rootId }: { spec: PartSpec; rootId: string }) {
       {data && !data.kit && (
         <MeshView
           data={data}
-          color={data.category === "frame" ? FRAME_COLOR : (data.mat && materials?.[data.mat]?.color) || "#d8c7a3"}
+          color={data.color || FRAME_COLOR}
           selected={selected}
           onClick={onClick}
         />
@@ -115,7 +114,8 @@ function MeshView({
 function useMesh(type: string, params: Params): MeshData | null {
   const [data, setData] = useState<MeshData | null>(null);
   const notify = useStore((s) => s.notify);
-  const key = type + JSON.stringify(params);
+  const epoch = useStore((s) => s.meshEpoch); // parts/ が書き換わったら取り直す
+  const key = epoch + type + JSON.stringify(params);
   useEffect(() => {
     let alive = true;
     fetchMesh(type, params)

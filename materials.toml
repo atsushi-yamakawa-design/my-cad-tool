@@ -25,3 +25,18 @@ label = "アクリル 5mm"
 t = 5.0
 kerf = 0.20
 color = "#7fbfe6"
+
+# ---- 3Dプリント ----
+# 3Dプリント部品の材料（filament パラメータで選ぶ）。color は 3D表示の色
+[filaments.pla]
+label = "PLA"
+color = "#f2f2f2"
+
+[filaments.petg]
+label = "PETG"
+color = "#5a6472"
+
+# プリンタの造形サイズ（幅, 奥行き, 高さ）。書いておくと加工前チェックで大きすぎる部品を警告する
+# [printer]
+# name = "Bambu Lab A1"
+# bed = [256, 256, 256]

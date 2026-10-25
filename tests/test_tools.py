@@ -62,6 +62,7 @@ def test_cli_build_all(tmp_path, stand_asm):
     names = sorted(p.name for p in paths)
     assert names == sorted([
         "stand_acrylic5.dxf", "stand_mdf3.dxf", "stand.step", "stand.glb", "stand_bom.md", "stand_bom.csv",
+        "stand_preview.png",
     ])
     assert all(p.exists() and p.parent == tmp_path / "out" for p in paths)
 

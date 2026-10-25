@@ -77,11 +77,37 @@ cd gui && npm install && npm run build   # → src/alucad/gui/static/ を更新
 npm run dev                              # 開発用（別ターミナルで uv run alucad gui --no-browser）
 ```
 
+### Claude Code と一緒に使う（チャットで設計する）
+
+Mac でこのフォルダを開いた Claude Code に、日本語で頼むのがいちばん速い。GUI を横に開いておくと、
+Claude が `designs/*.json` や `parts/*.py` を保存した1秒後に画面へ反映される。
+Claude 向けの決まりごとはリポジトリ直下の `CLAUDE.md` に書いてあり、Claude Code が自動で読む。
+
+頼み方の例:
+- 「stand の天板の手前に 100×60 のアクリル3mm の板を足して。四隅に M3 の穴」
+- 「2020 の脚の下にかぶせる足を4つ付けて」
+- 「フレームの側面に付けるケーブルクリップを3Dプリント部品で作って、STL で書き出して」
+
+GUI 側に保存していない変更があるときに Claude がファイルを書き換えると、画面に確認が出る（勝手に上書きはしない）。
+
+### 3Dプリント部品と自作部品（parts/）
+
+- 標準の3Dプリント部品: L字アングル（`angle_bracket`）、スペーサー（`spacer`）
+- `parts/` に `.py` を置くと自作部品として自動で登録される（パレットに「自作」と付いて出る）。
+  ひな形は `parts/_template.py`、お手本は `parts/frame_foot.py`（フレームの足）
+- フィラメント（PLA / PETG…）とプリンタの造形サイズは `materials.toml`
+- 書き出しは STL（mm、モデルの向き＝z=0 がベッド側）。同じ形はまとめて `<名前>_<種類>_x<個数>.stl`
+
+```bash
+uv run alucad part frame_foot --set depth=12 --png foot.png --stl foot.stl   # 部品を1つだけ確認・書き出し
+uv run alucad preview designs/stand.json                                    # 4方向のプレビュー画像
+```
+
 ### デザインをJSONで書いて、コマンドで全部書き出す
 
 `designs/` にアセンブリのJSONを置いて:
 ```bash
-uv run alucad build designs/stand.json          # designs/out/ に DXF・STEP・GLB・部品表
+uv run alucad build designs/stand.json          # designs/out/ に DXF・STL・STEP・GLB・部品表・プレビュー
 uv run alucad build designs/box.json --only dxf,bom
 uv run alucad check designs/stand.json          # 加工前チェックだけ
 uv run alucad bom designs/stand.json            # 部品表を画面に表示（--csv でCSV）
@@ -181,6 +207,8 @@ DXFを ezdxf で読み戻して、外形寸法・穴径・穴位置・輪郭が�
 | `export_step(asm, path)` / `export_glb(asm, path)` | 3D書き出し（部品名・色つき） |
 | `bom(asm)` / `export_bom(asm, path)` | 部品表（.md / .csv） |
 | `check(asm)` | 加工前チェック。問題（Issue）のリスト |
+| `angle_bracket(...)` / `spacer(...)` | 3Dプリント部品 |
+| `export_prints(asm, out_dir)` | 3Dプリント部品を STL で（同じ形はまとめる） |
 | `show(obj)` | OCP CAD Viewer に表示 |
 | `catalog()` | 全コンポーネントのメタデータ（将来のGUI用） |
 
@@ -200,6 +228,7 @@ DXFを ezdxf で読み戻して、外形寸法・穴径・穴位置・輪郭が�
 - [x] Phase 3: フィンガージョイント、ネスティング
 - [ ] Phase 4: Web GUI（JSON を編集する）
   - [x] 4a: 表示・パレット・プロパティパネル・保存/読み込み・書き出し・チェック/部品表・Undo
+  - [x] 外部変更の自動読み込み（Claude Code 連携）・3Dプリント部品・自作部品（parts/）・プレビュー画像
   - [ ] 4b: ドラッグ移動・回転・グリッドスナップ
   - [ ] 4c: 接続点スナップ・寸法ハンドル
   - [ ] 4d: カットシートのプレビュー・仕上げ

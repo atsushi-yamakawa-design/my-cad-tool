@@ -45,8 +45,12 @@ def test_validate_fills_defaults_and_reports_errors(client):
     assert unknown.status_code == 400 and "未登録" in unknown.json()["detail"]
 
 
+def _load(client, name):
+    return client.get(f"/api/designs/{name}").json()["assembly"]
+
+
 def test_explode(client):
-    stand = client.get("/api/designs/stand").json()["parts"][0]
+    stand = _load(client, "stand")["parts"][0]
     stand["pos"] = [100, 0, 0]
     parts = client.post("/api/explode", json=stand).json()["parts"]
     top = next(p for p in parts if p["id"] == "stand_top")
@@ -55,7 +59,7 @@ def test_explode(client):
 
 def test_designs_roundtrip_and_build(client, tmp_path):
     assert client.get("/api/designs").json()["designs"] == ["stand"]
-    asm = client.get("/api/designs/stand").json()
+    asm = _load(client, "stand")
     asm["parts"][0]["params"]["w"] = 260
     assert client.put("/api/designs/copy", json=asm).status_code == 200
     saved = json.loads((tmp_path / "copy.json").read_text(encoding="utf-8"))
@@ -68,13 +72,13 @@ def test_designs_roundtrip_and_build(client, tmp_path):
 
 
 def test_design_name_is_restricted(client):
-    asm = client.get("/api/designs/stand").json()
+    asm = _load(client, "stand")
     assert client.put("/api/designs/bad name", json=asm).status_code == 400
     assert client.get("/api/designs/nothing").status_code == 404
 
 
 def test_check_and_bom(client):
-    asm = client.get("/api/designs/stand").json()
+    asm = _load(client, "stand")
     assert client.post("/api/check", json=asm).json() == {"issues": []}
     asm["parts"][0]["params"]["w"] = 400
     issues = client.post("/api/check", json=asm).json()["issues"]
@@ -86,3 +90,31 @@ def test_check_and_bom(client):
 def test_index_served(client):
     r = client.get("/")
     assert r.status_code == 200 and "<div id=\"root\">" in r.text
+
+
+def test_save_conflict_when_changed_outside(client, tmp_path):
+    first = client.get("/api/designs/stand").json()
+    stamp, asm = first["stamp"], first["assembly"]
+    assert client.get("/api/watch", params={"design": "stand"}).json()["design"] == stamp
+
+    # 外部（Claude Code など）がファイルを書き換える
+    Assembly("stand", [frame_stand(w=250).named("stand")]).save(tmp_path / "stand.json")
+    changed = client.get("/api/watch", params={"design": "stand"}).json()["design"]
+    assert changed != stamp
+
+    # 古い stamp のまま保存しようとすると止まる
+    r = client.put("/api/designs/stand", params={"base": stamp}, json=asm)
+    assert r.status_code == 409 and "外部で変更" in r.json()["detail"]
+    # 新しい stamp なら保存できる
+    r = client.put("/api/designs/stand", params={"base": changed}, json=asm)
+    assert r.status_code == 200 and r.json()["stamp"] != changed
+
+
+def test_watch_reports_parts_state(client):
+    w = client.get("/api/watch").json()
+    assert w["design"] is None and len(w["parts"]) == 12 and w["parts_errors"] == {}
+
+
+def test_mesh_has_color(client):
+    d = client.post("/api/mesh", json={"type": "angle_bracket", "params": {}}).json()
+    assert d["category"] == "print" and d["color"].startswith("#")

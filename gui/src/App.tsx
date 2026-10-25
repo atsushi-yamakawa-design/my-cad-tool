@@ -9,6 +9,26 @@ import { useStore } from "./store";
 export function App() {
   const notice = useStore((s) => s.notice);
   const ready = useStore((s) => s.catalog !== null);
+  const conflict = useStore((s) => s.conflict);
+  const name = useStore((s) => s.name);
+
+  // 1秒ごとに、デザインファイルと parts/ が外で変わっていないか確認する（Claude Code などが書き換えたとき用）
+  useEffect(() => {
+    if (!ready) return;
+    let busy = false;
+    const timer = window.setInterval(async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        await useStore.getState().poll();
+      } catch {
+        /* サーバーが止まっているときは黙って待つ */
+      } finally {
+        busy = false;
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [ready]);
 
   useEffect(() => {
     useStore
@@ -58,6 +78,15 @@ export function App() {
       <main className="viewport">{ready && <Viewport />}</main>
       <PropertyPanel />
       <BottomPanel />
+      {conflict && (
+        <div className="conflict">
+          <span>
+            {name}.json が外部（Claude Code など）で変更されました。こちらにも保存していない変更があります。
+          </span>
+          <button onClick={() => useStore.getState().reloadFromDisk()}>外部の変更を読み込む</button>
+          <button onClick={() => useStore.getState().keepMine()}>こちらの内容を残す</button>
+        </div>
+      )}
       {notice && <div className={`notice ${notice.kind}`}>{notice.text}</div>}
     </div>
   );
