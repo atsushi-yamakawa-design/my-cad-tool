@@ -66,7 +66,9 @@ Python 本体も含めて、`.venv/` フォルダに全部入る（PCの他の�
 uv run python examples/p1_panel.py    # 穴あき板1枚 → DXF
 uv run python examples/p1_stand.py    # 台を部品から手で組む → JSON + 天板DXF
 uv run python examples/p2_stand.py    # 同じ台をキット1行で → JSON / STEP / GLB / 材料別DXF
+uv run python examples/p3_box.py      # フィンガージョイントの箱 → ネスティングしたDXF
 uv run python examples/kerf_test.py mdf3   # カーフ測定用テストピース
+uv run python examples/joint_test.py mdf3  # フィンガージョイントのはめあい（fit）テストピース
 ```
 - 3Dがビューアに表示される
 - `examples/out/` に DXF / JSON / STEP / GLB が出る
@@ -95,6 +97,15 @@ DXFを ezdxf で読み戻して、外形寸法・穴径・穴位置・輪郭が�
 3. `materials.toml` の `kerf` を書き換える
 4. `kerf_test_mdf3_on.dxf` を切って、幅 50.0 / 穴 10.0 に近いか確認
 
+### フィンガージョイントのはめあい
+
+`finger_box(..., fit=0.0)` の `fit` は「凸と凹のすき間の合計（mm）」。+ でゆるく、- できつくなる。
+カーフ補正は書き出し時に別でかかるので、`fit` にカーフを足し引きしないこと。
+
+1. まずカーフを実測する（上の手順）。これで `fit=0` がほぼ「すき間ゼロ」になる
+2. `uv run python examples/joint_test.py mdf3` で fit = -0.1 / 0 / +0.1 / +0.2 のペアを切って組んでみる
+3. ちょうどいい値を `finger_box(fit=...)` に使う
+
 ### Beam Studio に読み込む
 
 1. Beam Studio で「ファイル → 開く」（またはドラッグ＆ドロップ）で `examples/out/*.dxf` を開く
@@ -112,13 +123,15 @@ DXFを ezdxf で読み戻して、外形寸法・穴径・穴位置・輪郭が�
 | `l_bracket(profile="2020", arm=60, mat="acrylic5", size="M5", n=2)` | L字プレート。穴はフレーム中心線上 |
 | `corner_bracket(profile="2020", arm=80, mat="acrylic5", size="M5")` | 三角プレート（ガセット） |
 | `frame_stand(w, d, h, profile="2020", top_mat="mdf3", brackets=True)` | キット: 脚4本＋横桟4本＋天板＋L字プレート8枚 |
+| `finger_box(w, d, h, mat="mdf3", finger=10, fit=0.0, lid=True)` | キット: フィンガージョイントの箱（外寸指定）。5〜6枚の板 |
+| `box_face(w, h, mat, edges="AAAA", finger=10, fit=0.0)` | フィンガージョイントの板1枚。edges は下・右・上・左に A（凸始まり）/ B（凹始まり）/ -（まっすぐ） |
 | `frame_holes(plate, frames, size="M5", pitch=150)` | 板の下に接するフレームから、取り付け穴を自動計算 |
 | `hole_grid(w, h, size="M5", inset=10, nx=2, ny=2)` | 板の縁から inset の位置に等間隔の穴リスト |
 | `.at(x, y, z)` / `.rot(x, y, z)` | 位置・回転（度、XYZ順＝three.js の Euler 'XYZ' と同じ） |
 | `.with_params(**kw)` | パラメータを一部変えた部品（位置はそのまま） |
 | `Assembly(name)` / `.add(part, name=)` / `.save(path)` / `Assembly.load(path)` | アセンブリとJSON。キットの中身は `asm["stand/top"]` で取れる |
-| `export_dxf(parts, path, kerf=None, compensate=True, gap=5)` | DXF。kerf 省略で材料の値。加工エリアの幅で折り返して並べる |
-| `export_sheets(asm, out_dir)` | 材料ごとに1ファイルのDXF |
+| `export_dxf(parts, path, kerf=None, compensate=True, gap=5)` | 1つのDXFに全部。kerf 省略で材料の値。加工エリアの幅で折り返して並べる |
+| `export_sheets(asm, out_dir, gap=5)` | 材料ごとに、加工エリアに収まるようネスティングしたDXF。入りきらなければ `_1`, `_2`… に分割 |
 | `export_step(asm, path)` / `export_glb(asm, path)` | 3D書き出し（部品名・色つき） |
 | `show(obj)` | OCP CAD Viewer に表示 |
 | `catalog()` | 全コンポーネントのメタデータ（将来のGUI用） |
@@ -136,5 +149,5 @@ DXFを ezdxf で読み戻して、外形寸法・穴径・穴位置・輪郭が�
 
 - [x] Phase 1: frame / panel / DXF（カーフ補正）/ 寸法テスト / JSON
 - [x] Phase 2: 材料設定、ブラケット、フレームからの穴位置自動計算、キット、STEP / GLB
-- [ ] Phase 3: フィンガージョイント、ネスティング
+- [x] Phase 3: フィンガージョイント、ネスティング
 - [ ] Phase 4: Web GUI（JSON を編集する）

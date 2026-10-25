@@ -6,6 +6,7 @@ from .bracket import corner_bracket, l_bracket
 from .export import cut_layers, export_dxf, export_glb, export_sheets, export_step
 from .frame import frame
 from .holes import HOLES, hole_dia, hole_grid
+from .joint import box_face, finger_box
 from .kits import frame_stand
 from .materials import BED, MATERIALS, Material
 from .mounting import frame_holes
@@ -26,6 +27,7 @@ __all__ = [
     "Param",
     "Part",
     "Profile",
+    "box_face",
     "catalog",
     "corner_bracket",
     "cut_layers",
@@ -33,6 +35,7 @@ __all__ = [
     "export_glb",
     "export_sheets",
     "export_step",
+    "finger_box",
     "frame",
     "frame_holes",
     "frame_stand",

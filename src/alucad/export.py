@@ -16,12 +16,13 @@ import warnings
 from collections import defaultdict
 from pathlib import Path
 
-from build123d import Color, Compound, ExportDXF, Kind, Pos, Shape, Unit, export_gltf, offset
+from build123d import Color, Compound, ExportDXF, Kind, Pos, Rot, Shape, Unit, export_gltf, offset
 from build123d import export_step as _b3d_export_step
 from build123d.exporters import ColorIndex
 
 from . import materials
 from .assembly import Assembly
+from .nest import shelf_pack
 from .part import Part
 from .registry import get
 
@@ -62,11 +63,16 @@ def export_dxf(
     kerf: float | None = None,
     compensate: bool = True,
     gap: float = 5.0,
+    rotate: bool = False,
 ) -> Path:
-    """板パーツをDXF（mm）に書き出す。複数パーツは gap 空けて並べ、加工エリアの幅で折り返す。
+    """板パーツを1つのDXF（mm）に書き出す。
+
+    パーツは背の高い順に、加工エリアの幅で折り返しながら並べる（高さは無制限＝1ファイル）。
+    加工エリアに収まるように複数シートへ分けたいときは export_sheets() を使う。
 
     kerf:       カーフ（mm）。省略すると各パーツの材料の値を使う
     compensate: True ならカーフ補正をかける。False なら設計寸法そのまま
+    rotate:     True なら横長になるようにパーツを90°回して並べる
     """
     parts = [p for p in _parts(parts) if p.is_flat]
     if not parts:
@@ -77,42 +83,17 @@ def export_dxf(
             f"材料が混ざっています {sorted(mats)}。材料ごとに分けるなら export_sheets() を使ってください",
             stacklevel=2,
         )
-
+    items = [(p, cut_layers(p, kerf, compensate)) for p in parts]
+    slots = shelf_pack(_sizes(items), materials.BED[0], None, gap, rotate)
+    w, h = _write(items, slots, Path(path))
     bed = materials.BED
-    dxf = ExportDXF(unit=Unit.MM)
-    for name, color in LAYER_COLORS.items():
-        dxf.add_layer(name, color=color)
-
-    # 左から右へ並べ、加工エリアの幅を超えたら上の行へ折り返す（簡易版。本格的なネスティングは Phase 3）
-    x = y = row_h = used_w = 0.0
-    for p in parts:
-        layers = cut_layers(p, kerf, compensate)
-        bb = layers["cut"].bounding_box()
-        w, h = bb.size.X, bb.size.Y
-        if not _fits_bed(w, h, bed):
-            warnings.warn(
-                f"{p.name or p.type}: {w:.1f}×{h:.1f}mm は加工エリア {bed[0]:.0f}×{bed[1]:.0f}mm に入りません",
-                stacklevel=2,
-            )
-        if x > 0 and x + w > bed[0]:
-            x, y, row_h = 0.0, y + row_h + gap, 0.0
-        move = Pos(x - bb.min.X, y - bb.min.Y)
-        for name, shape in layers.items():
-            dxf.add_shape(move * shape, layer=name)
-        used_w = max(used_w, x + w)
-        x += w + gap
-        row_h = max(row_h, h)
-
-    if used_w > bed[0] or y + row_h > bed[1]:
+    if w > bed[0] + 1e-9 or h > bed[1] + 1e-9:
         warnings.warn(
-            f"並べた全体 {used_w:.1f}×{y + row_h:.1f}mm が加工エリアを超えています（ネスティングは Phase 3）",
+            f"並べた全体 {w:.1f}×{h:.1f}mm が加工エリア {bed[0]:.0f}×{bed[1]:.0f}mm を超えています"
+            "（export_sheets() なら複数シートに分けます）",
             stacklevel=2,
         )
-
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    dxf.write(path)
-    return path
+    return Path(path)
 
 
 def export_sheets(
@@ -121,10 +102,12 @@ def export_sheets(
     prefix: str | None = None,
     compensate: bool = True,
     gap: float = 5.0,
+    rotate: bool = True,
 ) -> list[Path]:
-    """板パーツを材料ごとに分けて、材料1つにつき1つのDXFに書き出す。
+    """板パーツを材料ごとに分け、加工エリアに収まるようにネスティングしてDXFに書き出す。
 
-    ファイル名: <prefix>_<材料>.dxf（prefix 省略時は Assembly の名前）
+    ファイル名: <prefix>_<材料>.dxf。1枚に収まらなければ <prefix>_<材料>_1.dxf, _2.dxf, …
+    （prefix 省略時は Assembly の名前）
     """
     if prefix is None:
         prefix = obj.name if isinstance(obj, Assembly) else "parts"
@@ -132,10 +115,52 @@ def export_sheets(
     for p in _parts(obj):
         if p.is_flat:
             groups[p.mat].append(p)
-    return [
-        export_dxf(ps, Path(out_dir) / f"{prefix}_{mat}.dxf", compensate=compensate, gap=gap)
-        for mat, ps in sorted(groups.items())
-    ]
+
+    bed = materials.BED
+    paths = []
+    for mat, ps in sorted(groups.items()):
+        items = [(p, cut_layers(p, None, compensate)) for p in ps]
+        slots = shelf_pack(_sizes(items), bed[0], bed[1], gap, rotate)
+        for item, slot in zip(items, slots):
+            if slot.oversize:
+                p = item[0]
+                warnings.warn(f"{p.name or p.type} は加工エリア {bed[0]:.0f}×{bed[1]:.0f}mm に入りません", stacklevel=2)
+        n = max(s.sheet for s in slots) + 1
+        for k in range(n):
+            sel = [(it, sl) for it, sl in zip(items, slots) if sl.sheet == k]
+            name = f"{prefix}_{mat}.dxf" if n == 1 else f"{prefix}_{mat}_{k + 1}.dxf"
+            path = Path(out_dir) / name
+            _write([it for it, _ in sel], [sl for _, sl in sel], path)
+            paths.append(path)
+    return paths
+
+
+def _sizes(items) -> list[tuple[float, float]]:
+    out = []
+    for _, layers in items:
+        bb = layers["cut"].bounding_box()
+        out.append((bb.size.X, bb.size.Y))
+    return out
+
+
+def _write(items, slots, path: Path) -> tuple[float, float]:
+    """並べ終わった位置でDXFを書く。戻り値は使った範囲の幅・高さ。"""
+    dxf = ExportDXF(unit=Unit.MM)
+    for name, color in LAYER_COLORS.items():
+        dxf.add_layer(name, color=color)
+    used_w = used_h = 0.0
+    for (_, layers), slot in zip(items, slots):
+        if slot.rotated:
+            layers = {k: Rot(0, 0, 90) * v for k, v in layers.items()}
+        bb = layers["cut"].bounding_box()
+        move = Pos(slot.x - bb.min.X, slot.y - bb.min.Y)
+        for name, shape in layers.items():
+            dxf.add_shape(move * shape, layer=name)
+        used_w = max(used_w, slot.x + bb.size.X)
+        used_h = max(used_h, slot.y + bb.size.Y)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    dxf.write(path)
+    return used_w, used_h
 
 
 def to_compound(obj: Part | list[Part] | Assembly, name: str = "assembly") -> Compound:
@@ -179,6 +204,3 @@ def export_glb(obj: Part | list[Part] | Assembly, path: str | Path) -> Path:
         raise RuntimeError(f"GLBの書き出しに失敗しました: {path}")
     return path
 
-
-def _fits_bed(w: float, h: float, bed) -> bool:
-    return (w <= bed[0] and h <= bed[1]) or (h <= bed[0] and w <= bed[1])
