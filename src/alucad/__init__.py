@@ -4,6 +4,7 @@
 from .assembly import Assembly
 from .bom import bom, export_bom
 from .bracket import corner_bracket, l_bracket
+from .check import Issue, check
 from .export import cut_layers, export_dxf, export_glb, export_sheets, export_step
 from .frame import frame
 from .holes import HOLES, hole_dia, hole_grid
@@ -22,6 +23,7 @@ __all__ = [
     "Assembly",
     "BED",
     "HOLES",
+    "Issue",
     "MATERIALS",
     "Material",
     "PROFILES",
@@ -31,6 +33,7 @@ __all__ = [
     "bom",
     "box_face",
     "catalog",
+    "check",
     "corner_bracket",
     "cut_layers",
     "export_bom",

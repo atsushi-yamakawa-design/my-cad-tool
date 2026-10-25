@@ -3,6 +3,7 @@
   uv run alucad build designs/stand.json            → designs/out/ に DXF・STEP・GLB・部品表
   uv run alucad build designs/stand.json -o dist    → 出力先を指定
   uv run alucad build designs/stand.json --only dxf,bom
+  uv run alucad check designs/stand.json            → 加工前チェックだけ
   uv run alucad bom designs/stand.json              → 部品表を画面に表示
   uv run alucad catalog                             → 使えるコンポーネントの一覧（GUI用のJSON）
 
@@ -52,6 +53,10 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--only", default=",".join(FORMATS), help=f"書き出す形式（カンマ区切り。{','.join(FORMATS)}）")
     b.add_argument("--no-kerf", action="store_true", help="カーフ補正をしない（設計寸法のまま）")
     b.add_argument("--gap", type=float, default=3.0, help="DXFでパーツ同士を空ける間隔 mm（既定 3）")
+    b.add_argument("--force", action="store_true", help="チェックでエラーがあっても書き出す")
+
+    c = sub.add_parser("check", help="加工前チェック（加工エリア・穴と縁の間隔・細い部分・めり込み）")
+    c.add_argument("json", help="アセンブリのJSONファイル")
 
     m = sub.add_parser("bom", help="部品表を表示する")
     m.add_argument("json", help="アセンブリのJSONファイル")
@@ -66,6 +71,9 @@ def main(argv: list[str] | None = None) -> int:
         bad = set(only) - set(FORMATS)
         if bad:
             ap.error(f"--only に使えない形式: {sorted(bad)}")
+        if not _report_check(args.json) and not args.force:
+            print("エラーがあるので書き出しを中止しました（それでも書き出すなら --force）", file=sys.stderr)
+            return 1
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             paths = build(args.json, args.out, only, compensate=not args.no_kerf, gap=args.gap)
@@ -73,6 +81,8 @@ def main(argv: list[str] | None = None) -> int:
             print("書き出し:", p)
         for w in caught:
             print("注意:", w.message, file=sys.stderr)
+    elif args.cmd == "check":
+        return 0 if _report_check(args.json) else 1
     elif args.cmd == "bom":
         from . import Assembly
         from .bom import bom
@@ -84,6 +94,20 @@ def main(argv: list[str] | None = None) -> int:
 
         print(json.dumps(catalog(), ensure_ascii=False, indent=2))
     return 0
+
+
+def _report_check(json_path) -> bool:
+    """チェック結果を表示する。エラーがなければ True。"""
+    from . import Assembly
+    from .check import check
+
+    issues = check(Assembly.load(json_path))
+    for i in issues:
+        print(i, file=sys.stderr if i.level == "error" else sys.stdout)
+    errors = sum(i.level == "error" for i in issues)
+    warns = len(issues) - errors
+    print(f"チェック: エラー {errors} 件 / 注意 {warns} 件" if issues else "チェック: 問題なし")
+    return errors == 0
 
 
 if __name__ == "__main__":

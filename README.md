@@ -65,11 +65,20 @@ Python 本体も含めて、`.venv/` フォルダに全部入る（PCの他の�
 ```bash
 uv run alucad build designs/stand.json          # designs/out/ に DXF・STEP・GLB・部品表
 uv run alucad build designs/box.json --only dxf,bom
+uv run alucad check designs/stand.json          # 加工前チェックだけ
 uv run alucad bom designs/stand.json            # 部品表を画面に表示（--csv でCSV）
 uv run alucad catalog                           # 使えるコンポーネントとパラメータの一覧
 ```
 JSONの `params` の数字を書き換えて build し直すだけで、形も穴も部品表も追従する。
 パラメータ名は `uv run alucad catalog` で確認できる。将来のGUIもこのJSONを編集する。
+
+### 加工前チェック
+
+`alucad build` は書き出す前に自動でチェックし、エラーがあれば止まる（`--force` で無視して書き出す）。
+- エラー: 加工エリアに入らない板 / 部品同士の3Dのめり込み
+- 注意: 穴と縁・穴どうしの間が板厚より狭い（割れやすい）/ 幅 1mm 未満の細い部分（燃えやすい・折れやすい）
+
+Python からは `check(asm)` で問題のリストが取れる。
 
 ### 部品表（BOM）
 
@@ -153,6 +162,7 @@ DXFを ezdxf で読み戻して、外形寸法・穴径・穴位置・輪郭が�
 | `export_sheets(asm, out_dir, gap=3)` | 材料ごとに、加工エリアに収まるようネスティングしたDXF。入りきらなければ `_1`, `_2`… に分割 |
 | `export_step(asm, path)` / `export_glb(asm, path)` | 3D書き出し（部品名・色つき） |
 | `bom(asm)` / `export_bom(asm, path)` | 部品表（.md / .csv） |
+| `check(asm)` | 加工前チェック。問題（Issue）のリスト |
 | `show(obj)` | OCP CAD Viewer に表示 |
 | `catalog()` | 全コンポーネントのメタデータ（将来のGUI用） |
 
