@@ -68,7 +68,7 @@ def test_export_sheets_splits_by_material(tmp_path):
     paths = export_sheets(parts, tmp_path, prefix="x")
     assert sorted(p.name for p in paths) == ["x_acrylic5.dxf", "x_mdf3.dxf"]
     k = MATERIALS["mdf3"].kerf
-    assert _cut_size(tmp_path / "x_mdf3.dxf") == (round(100 + k + 5 + 60 + k, 4), 50 + k)
+    assert _cut_size(tmp_path / "x_mdf3.dxf") == (round(100 + k + 3 + 60 + k, 4), 50 + k)
 
 
 def test_dxf_wraps_rows_at_bed_width(tmp_path):

@@ -2,6 +2,7 @@
 
 # 部品モジュールを import した時点で、コンポーネントがレジストリに登録される
 from .assembly import Assembly
+from .bom import bom, export_bom
 from .bracket import corner_bracket, l_bracket
 from .export import cut_layers, export_dxf, export_glb, export_sheets, export_step
 from .frame import frame
@@ -27,10 +28,12 @@ __all__ = [
     "Param",
     "Part",
     "Profile",
+    "bom",
     "box_face",
     "catalog",
     "corner_bracket",
     "cut_layers",
+    "export_bom",
     "export_dxf",
     "export_glb",
     "export_sheets",

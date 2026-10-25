@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "units": "mm",
+  "up": "Z",
+  "name": "stand",
+  "parts": [
+    {
+      "id": "stand",
+      "type": "frame_stand",
+      "params": {
+        "w": 280.0,
+        "d": 200.0,
+        "h": 150.0,
+        "profile": "2020",
+        "top_mat": "mdf3",
+        "top_r": 4.0,
+        "brackets": true,
+        "bracket_mat": "acrylic5",
+        "size": "M5"
+      },
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ]
+}

@@ -9,5 +9,5 @@ wheels/
 # Virtual environments
 .venv
 
-# alucad の出力
-examples/out/
+# alucad の出力（examples/out/, designs/out/ など）
+out/

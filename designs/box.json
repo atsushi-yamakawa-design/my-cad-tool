@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "units": "mm",
+  "up": "Z",
+  "name": "box",
+  "parts": [
+    {
+      "id": "box",
+      "type": "finger_box",
+      "params": {
+        "w": 120.0,
+        "d": 80.0,
+        "h": 60.0,
+        "mat": "mdf3",
+        "finger": 10.0,
+        "fit": 0.0,
+        "lid": true
+      },
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ]
+}

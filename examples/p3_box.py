@@ -23,6 +23,6 @@ asm.add(finger_box(120, 80, 60, mat="mdf3", finger=10, fit=0.0, lid=True), name=
 
 print("書き出し:", asm.save(OUT / "p3_box.json"))
 print("書き出し:", export_step(asm, OUT / "p3_box.step"))
-for path in export_sheets(asm, OUT, gap=3):
+for path in export_sheets(asm, OUT):
     print("書き出し:", path)
 show(asm)

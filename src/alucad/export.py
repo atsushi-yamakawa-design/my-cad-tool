@@ -62,7 +62,7 @@ def export_dxf(
     path: str | Path,
     kerf: float | None = None,
     compensate: bool = True,
-    gap: float = 5.0,
+    gap: float = 3.0,
     rotate: bool = False,
 ) -> Path:
     """板パーツを1つのDXF（mm）に書き出す。
@@ -101,7 +101,7 @@ def export_sheets(
     out_dir: str | Path,
     prefix: str | None = None,
     compensate: bool = True,
-    gap: float = 5.0,
+    gap: float = 3.0,
     rotate: bool = True,
 ) -> list[Path]:
     """板パーツを材料ごとに分け、加工エリアに収まるようにネスティングしてDXFに書き出す。

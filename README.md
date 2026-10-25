@@ -59,6 +59,25 @@ Python 本体も含めて、`.venv/` フォルダに全部入る（PCの他の�
 
 ## 使い方
 
+### デザインをJSONで書いて、コマンドで全部書き出す（おすすめ）
+
+`designs/` にアセンブリのJSONを置いて:
+```bash
+uv run alucad build designs/stand.json          # designs/out/ に DXF・STEP・GLB・部品表
+uv run alucad build designs/box.json --only dxf,bom
+uv run alucad bom designs/stand.json            # 部品表を画面に表示（--csv でCSV）
+uv run alucad catalog                           # 使えるコンポーネントとパラメータの一覧
+```
+JSONの `params` の数字を書き換えて build し直すだけで、形も穴も部品表も追従する。
+パラメータ名は `uv run alucad catalog` で確認できる。将来のGUIもこのJSONを編集する。
+
+### 部品表（BOM）
+
+`alucad build` で `<名前>_bom.md`（読む用）と `<名前>_bom.csv`（Excel用）が出る。
+- アルミフレーム: 断面×長さごとの本数（長さ指定カットの注文にそのまま使える）
+- 板: 材料ごとのシート枚数とパーツ一覧
+- ネジ: 穴の位置から相手を判定（フレーム側面→Tナット、端面→タップ、相手なし→ナット）。ボルト長さは目安
+
 ### サンプルを動かす
 
 ビューアを開いた状態で:
@@ -130,9 +149,10 @@ DXFを ezdxf で読み戻して、外形寸法・穴径・穴位置・輪郭が�
 | `.at(x, y, z)` / `.rot(x, y, z)` | 位置・回転（度、XYZ順＝three.js の Euler 'XYZ' と同じ） |
 | `.with_params(**kw)` | パラメータを一部変えた部品（位置はそのまま） |
 | `Assembly(name)` / `.add(part, name=)` / `.save(path)` / `Assembly.load(path)` | アセンブリとJSON。キットの中身は `asm["stand/top"]` で取れる |
-| `export_dxf(parts, path, kerf=None, compensate=True, gap=5)` | 1つのDXFに全部。kerf 省略で材料の値。加工エリアの幅で折り返して並べる |
-| `export_sheets(asm, out_dir, gap=5)` | 材料ごとに、加工エリアに収まるようネスティングしたDXF。入りきらなければ `_1`, `_2`… に分割 |
+| `export_dxf(parts, path, kerf=None, compensate=True, gap=3)` | 1つのDXFに全部。kerf 省略で材料の値。加工エリアの幅で折り返して並べる |
+| `export_sheets(asm, out_dir, gap=3)` | 材料ごとに、加工エリアに収まるようネスティングしたDXF。入りきらなければ `_1`, `_2`… に分割 |
 | `export_step(asm, path)` / `export_glb(asm, path)` | 3D書き出し（部品名・色つき） |
+| `bom(asm)` / `export_bom(asm, path)` | 部品表（.md / .csv） |
 | `show(obj)` | OCP CAD Viewer に表示 |
 | `catalog()` | 全コンポーネントのメタデータ（将来のGUI用） |
 
