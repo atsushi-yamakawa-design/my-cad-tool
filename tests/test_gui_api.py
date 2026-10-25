@@ -1,0 +1,88 @@
+"""GUIサーバーのAPI。"""
+
+import json
+
+import pytest
+from fastapi.testclient import TestClient
+
+from alucad import Assembly, frame_stand
+from alucad.gui.server import create_app
+
+
+@pytest.fixture
+def client(tmp_path):
+    Assembly("stand", [frame_stand().named("stand")]).save(tmp_path / "stand.json")
+    return TestClient(create_app(tmp_path))
+
+
+def test_catalog(client):
+    d = client.get("/api/catalog").json()
+    assert {c["name"] for c in d["components"]} >= {"frame", "panel", "frame_stand", "finger_box"}
+    assert d["materials"]["mdf3"]["t"] == 3.0 and d["bed"] == [300, 210]
+
+
+def test_mesh_single_part(client):
+    d = client.post("/api/mesh", json={"type": "panel", "params": {"w": 100, "h": 50}}).json()
+    assert d["kit"] is False and d["category"] == "plate" and d["mat"] == "mdf3"
+    xs, zs = d["vertices"][0::3], d["vertices"][2::3]
+    assert (min(xs), max(xs), min(zs), max(zs)) == (-50, 50, 0, 3)  # mm・Z上のまま
+    assert len(d["indices"]) % 3 == 0 and max(d["indices"]) < len(d["vertices"]) // 3
+
+
+def test_mesh_kit_returns_children(client):
+    d = client.post("/api/mesh", json={"type": "frame_stand", "params": {}}).json()
+    assert d["kit"] is True and len(d["children"]) == 17
+    top = next(c for c in d["children"] if c["id"] == "top")
+    assert top["pos"] == [0, 0, 150] and len(top["params"]["holes"]) == 10
+
+
+def test_validate_fills_defaults_and_reports_errors(client):
+    ok = client.post("/api/validate", json={"type": "panel", "params": {"w": 80}}).json()
+    assert ok["params"]["h"] == 150 and ok["params"]["mat"] == "mdf3"
+    bad = client.post("/api/validate", json={"type": "panel", "params": {"w": -1}})
+    assert bad.status_code == 400 and "1mm 以上" in bad.json()["detail"]
+    unknown = client.post("/api/validate", json={"type": "nope", "params": {}})
+    assert unknown.status_code == 400 and "未登録" in unknown.json()["detail"]
+
+
+def test_explode(client):
+    stand = client.get("/api/designs/stand").json()["parts"][0]
+    stand["pos"] = [100, 0, 0]
+    parts = client.post("/api/explode", json=stand).json()["parts"]
+    top = next(p for p in parts if p["id"] == "stand_top")
+    assert top["pos"] == [100, 0, 150]
+
+
+def test_designs_roundtrip_and_build(client, tmp_path):
+    assert client.get("/api/designs").json()["designs"] == ["stand"]
+    asm = client.get("/api/designs/stand").json()
+    asm["parts"][0]["params"]["w"] = 260
+    assert client.put("/api/designs/copy", json=asm).status_code == 200
+    saved = json.loads((tmp_path / "copy.json").read_text(encoding="utf-8"))
+    assert saved["name"] == "copy" and saved["parts"][0]["params"]["w"] == 260
+
+    res = client.post("/api/designs/copy/build", json=asm).json()
+    names = sorted(p.split("/")[-1] for p in res["files"])
+    assert "copy_mdf3.dxf" in names and "copy_bom.md" in names
+    assert (tmp_path / "out" / "copy.step").exists()
+
+
+def test_design_name_is_restricted(client):
+    asm = client.get("/api/designs/stand").json()
+    assert client.put("/api/designs/bad name", json=asm).status_code == 400
+    assert client.get("/api/designs/nothing").status_code == 404
+
+
+def test_check_and_bom(client):
+    asm = client.get("/api/designs/stand").json()
+    assert client.post("/api/check", json=asm).json() == {"issues": []}
+    asm["parts"][0]["params"]["w"] = 400
+    issues = client.post("/api/check", json=asm).json()["issues"]
+    assert issues[0]["level"] == "error" and "加工エリア" in issues[0]["message"]
+    b = client.post("/api/bom", json=asm).json()
+    assert {"profile": "2020", "length": 360.0, "qty": 2} in b["frames"] and "# 部品表" in b["markdown"]
+
+
+def test_index_served(client):
+    r = client.get("/")
+    assert r.status_code == 200 and "<div id=\"root\">" in r.text

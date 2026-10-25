@@ -6,6 +6,7 @@
   uv run alucad check designs/stand.json            → 加工前チェックだけ
   uv run alucad bom designs/stand.json              → 部品表を画面に表示
   uv run alucad catalog                             → 使えるコンポーネントの一覧（GUI用のJSON）
+  uv run alucad gui                                 → GUIエディタをブラウザで開く
 
 将来のGUIは、JSONを編集してこの build と同じ処理を呼ぶ。
 """
@@ -64,6 +65,11 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("catalog", help="使えるコンポーネントとパラメータの一覧をJSONで表示")
 
+    g = sub.add_parser("gui", help="GUIエディタを起動してブラウザで開く")
+    g.add_argument("--port", type=int, default=8000, help="ポート番号（既定 8000）")
+    g.add_argument("--designs", help="デザインJSONのフォルダ（既定はリポジトリの designs/）")
+    g.add_argument("--no-browser", action="store_true", help="ブラウザを自動で開かない")
+
     args = ap.parse_args(argv)
 
     if args.cmd == "build":
@@ -89,10 +95,28 @@ def main(argv: list[str] | None = None) -> int:
 
         b_ = bom(Assembly.load(args.json))
         print(b_.to_csv() if args.csv else b_.to_markdown())
+    elif args.cmd == "gui":
+        return _run_gui(args.port, args.designs, not args.no_browser)
     elif args.cmd == "catalog":
         from . import catalog
 
         print(json.dumps(catalog(), ensure_ascii=False, indent=2))
+    return 0
+
+
+def _run_gui(port: int, designs: str | None, open_browser: bool) -> int:
+    import threading
+    import webbrowser
+
+    import uvicorn
+
+    from .gui.server import create_app
+
+    url = f"http://127.0.0.1:{port}"
+    print(f"GUIエディタ: {url}  （終了は Ctrl+C）")
+    if open_browser:
+        threading.Timer(1.0, webbrowser.open, args=(url,)).start()
+    uvicorn.run(create_app(Path(designs) if designs else None), host="127.0.0.1", port=port, log_level="warning")
     return 0
 
 

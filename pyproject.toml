@@ -7,7 +7,9 @@ requires-python = ">=3.12"
 dependencies = [
     "build123d>=0.13.0,<0.14",  # APIが版で変わるので、上げるときは確認してから
     "ezdxf>=1.4.5",
+    "fastapi>=0.162.0",
     "ocp-vscode>=4.2.0",
+    "uvicorn>=0.54.0",
 ]
 
 [project.scripts]
@@ -19,8 +21,10 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.1.1",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]

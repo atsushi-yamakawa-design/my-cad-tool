@@ -1,0 +1,174 @@
+/* 仮の見た目（グレー基調）。本格的なデザインは 4b 以降で差し替える */
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --line: #e1e4e8;
+  --text: #1f2328;
+  --muted: #6b7280;
+  --accent: #2f7cf6;
+  --danger: #d1453b;
+  --warn: #b7791f;
+  --ok: #2f855a;
+  --radius: 6px;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; height: 100%; }
+
+.app {
+  display: grid;
+  height: 100vh;
+  grid-template-columns: 180px 1fr 300px;
+  grid-template-rows: 44px 1fr 190px;
+  grid-template-areas:
+    "top top top"
+    "palette view props"
+    "palette bottom props";
+}
+
+button, select, input, textarea { font: inherit; color: inherit; }
+button {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: #c4c9d0; background: #f3f4f6; }
+button:disabled { opacity: 0.4; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: white; }
+button.primary:hover { background: #1f6be0; }
+button.danger { color: var(--danger); }
+button.small { padding: 2px 8px; font-size: 12px; }
+button.icon { padding: 0 6px; border: none; color: var(--muted); }
+input, select, textarea {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 3px 6px;
+  background: white;
+  min-width: 0;
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid #bcd4fb; border-color: var(--accent); }
+textarea { width: 100%; font-family: ui-monospace, Menlo, monospace; font-size: 12px; resize: vertical; }
+textarea.bad { border-color: var(--danger); }
+
+/* ---- ツールバー ---- */
+.toolbar {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.brand { font-weight: 700; letter-spacing: 0.02em; margin-right: 8px; }
+.sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+.grow { flex: 1; }
+.design-name { width: 140px; }
+.dirty { color: transparent; font-size: 10px; }
+.dirty.on { color: var(--warn); }
+.check-badge { font-size: 12px; padding: 2px 8px; border-radius: 99px; }
+.check-badge.ok { color: var(--ok); background: #e6f4ea; }
+.check-badge.warning { color: var(--warn); background: #fdf3e1; }
+.check-badge.error { color: var(--danger); background: #fde8e7; }
+
+/* ---- パネル共通 ---- */
+.panel { background: var(--panel); overflow: auto; }
+.panel h3 {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 14px 0 6px;
+}
+.hint { color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+/* ---- パレット ---- */
+.palette { grid-area: palette; border-right: 1px solid var(--line); padding: 0 10px 10px; }
+.palette-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 4px;
+  border-color: transparent;
+}
+.palette-item:hover { border-color: var(--line); }
+
+/* ---- 3D ---- */
+.viewport { grid-area: view; position: relative; min-height: 0; }
+
+/* ---- プロパティ ---- */
+.props { grid-area: props; border-left: 1px solid var(--line); padding: 10px 12px; }
+.props-head { display: flex; flex-direction: column; gap: 4px; }
+.props-type { font-weight: 600; font-size: 14px; }
+.props-id { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.field {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  align-items: center;
+  gap: 4px 8px;
+  margin-bottom: 6px;
+}
+.field > label { color: var(--muted); font-size: 12px; }
+.field-wide { grid-template-columns: 1fr; }
+.field-input select, .field-input > input:not([type="checkbox"]) { width: 100%; }
+.field-error { grid-column: 1 / -1; color: var(--danger); font-size: 12px; }
+.props-actions { display: flex; gap: 6px; margin-top: 16px; }
+
+.num {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: white;
+  width: 100%;
+}
+.num:focus-within { outline: 2px solid #bcd4fb; border-color: var(--accent); }
+.num input { border: none; outline: none; width: 100%; text-align: right; padding: 3px 4px; }
+.num-unit, .num-prefix { color: var(--muted); font-size: 11px; padding: 0 6px; }
+.num-prefix { padding-right: 0; font-weight: 600; }
+.vec { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.num-compact .num-unit { display: none; }
+
+.holes { display: flex; flex-direction: column; gap: 4px; }
+.holes-head, .holes-row { display: grid; grid-template-columns: 1fr 1fr 64px 20px; gap: 4px; align-items: center; }
+.holes-head { color: var(--muted); font-size: 11px; padding: 0 2px; }
+.holes > .small { align-self: flex-start; margin-top: 2px; }
+
+/* ---- 下のパネル ---- */
+.bottom { grid-area: bottom; border-top: 1px solid var(--line); display: flex; flex-direction: column; }
+.tabs { display: flex; gap: 2px; padding: 6px 10px 0; border-bottom: 1px solid var(--line); }
+.tabs button { border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 4px 10px; }
+.tabs button.on { border-bottom-color: var(--accent); font-weight: 600; }
+.bottom-body { padding: 8px 12px; overflow: auto; flex: 1; }
+.issues { list-style: none; margin: 0; padding: 0; }
+.issues li { padding: 3px 0; cursor: pointer; }
+.issues li b { font-weight: 600; margin-right: 4px; }
+.issues li.error b { color: var(--danger); }
+.issues li.warning b { color: var(--warn); }
+.bom { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
+.bom table { border-collapse: collapse; }
+.bom caption { text-align: left; font-weight: 600; color: var(--muted); font-size: 11px; padding-bottom: 4px; }
+.bom td { padding: 2px 10px 2px 0; }
+.bom td.r { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---- 通知 ---- */
+.notice {
+  position: fixed;
+  left: 50%;
+  bottom: 210px;
+  transform: translateX(-50%);
+  background: #1f2328;
+  color: white;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.15);
+  max-width: 70vw;
+}
+.notice.error { background: var(--danger); }
