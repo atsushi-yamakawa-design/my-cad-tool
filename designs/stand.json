@@ -5,23 +5,492 @@
   "name": "stand",
   "parts": [
     {
-      "id": "stand",
-      "type": "frame_stand",
+      "id": "stand_leg_fl",
+      "type": "frame",
+      "params": {
+        "profile": "2020",
+        "length": 150.0,
+        "axis": "z"
+      },
+      "pos": [
+        -130.0,
+        -90.0,
+        0.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "stand_leg_fr",
+      "type": "frame",
+      "params": {
+        "profile": "2020",
+        "length": 150.0,
+        "axis": "z"
+      },
+      "pos": [
+        130.0,
+        -90.0,
+        0.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "stand_leg_br",
+      "type": "frame",
+      "params": {
+        "profile": "2020",
+        "length": 150.0,
+        "axis": "z"
+      },
+      "pos": [
+        130.0,
+        90.0,
+        0.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "stand_leg_bl",
+      "type": "frame",
+      "params": {
+        "profile": "2020",
+        "length": 150.0,
+        "axis": "z"
+      },
+      "pos": [
+        -130.0,
+        90.0,
+        0.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "stand_rail_front",
+      "type": "frame",
+      "params": {
+        "profile": "2020",
+        "length": 240.0,
+        "axis": "x"
+      },
+      "pos": [
+        -120.0,
+        -90.0,
+        140.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "stand_rail_back",
+      "type": "frame",
+      "params": {
+        "profile": "2020",
+        "length": 240.0,
+        "axis": "x"
+      },
+      "pos": [
+        -120.0,
+        90.0,
+        140.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "stand_rail_left",
+      "type": "frame",
+      "params": {
+        "profile": "2020",
+        "length": 160.0,
+        "axis": "y"
+      },
+      "pos": [
+        -130.0,
+        -80.0,
+        140.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "stand_rail_right",
+      "type": "frame",
+      "params": {
+        "profile": "2020",
+        "length": 160.0,
+        "axis": "y"
+      },
+      "pos": [
+        130.0,
+        -80.0,
+        140.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "stand_top",
+      "type": "panel",
       "params": {
         "w": 280.0,
-        "d": 200.0,
-        "h": 150.0,
-        "profile": "2020",
-        "top_mat": "mdf3",
-        "top_r": 4.0,
-        "brackets": true,
-        "bracket_mat": "acrylic5",
-        "size": "M5"
+        "h": 200.0,
+        "mat": "mdf3",
+        "r": 4.0,
+        "holes": [
+          [
+            -130,
+            -90,
+            "M5"
+          ],
+          [
+            130,
+            -90,
+            "M5"
+          ],
+          [
+            130,
+            90,
+            "M5"
+          ],
+          [
+            -130,
+            90,
+            "M5"
+          ],
+          [
+            -100,
+            -90,
+            "M5"
+          ],
+          [
+            100,
+            -90,
+            "M5"
+          ],
+          [
+            -100,
+            90,
+            "M5"
+          ],
+          [
+            100,
+            90,
+            "M5"
+          ],
+          [
+            -130,
+            0,
+            "M5"
+          ],
+          [
+            130,
+            0,
+            "M5"
+          ],
+          [
+            -20,
+            -20,
+            8
+          ],
+          [
+            20,
+            -20,
+            8
+          ],
+          [
+            20,
+            20,
+            8
+          ],
+          [
+            -20,
+            20,
+            8
+          ]
+        ],
+        "engrave": [],
+        "score": []
       },
       "pos": [
         0.0,
         0.0,
+        150.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
         0.0
+      ]
+    },
+    {
+      "id": "stand_angle_fl_y",
+      "type": "angle_bracket",
+      "params": {
+        "profile": "2020",
+        "arm": 30.0,
+        "t": 4.0,
+        "size": "M5",
+        "ribs": true,
+        "filament": "pla"
+      },
+      "pos": [
+        -120.0,
+        -90.0,
+        130.0
+      ],
+      "rot": [
+        -180.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "stand_angle_fl_x",
+      "type": "angle_bracket",
+      "params": {
+        "profile": "2020",
+        "arm": 30.0,
+        "t": 4.0,
+        "size": "M5",
+        "ribs": true,
+        "filament": "pla"
+      },
+      "pos": [
+        -130.0,
+        -80.0,
+        130.0
+      ],
+      "rot": [
+        -180.0,
+        0.0,
+        -90.0
+      ]
+    },
+    {
+      "id": "stand_angle_fr_y",
+      "type": "angle_bracket",
+      "params": {
+        "profile": "2020",
+        "arm": 30.0,
+        "t": 4.0,
+        "size": "M5",
+        "ribs": true,
+        "filament": "pla"
+      },
+      "pos": [
+        120.0,
+        -90.0,
+        130.0
+      ],
+      "rot": [
+        -180.0,
+        0.0,
+        -180.0
+      ]
+    },
+    {
+      "id": "stand_angle_fr_x",
+      "type": "angle_bracket",
+      "params": {
+        "profile": "2020",
+        "arm": 30.0,
+        "t": 4.0,
+        "size": "M5",
+        "ribs": true,
+        "filament": "pla"
+      },
+      "pos": [
+        130.0,
+        -80.0,
+        130.0
+      ],
+      "rot": [
+        -180.0,
+        0.0,
+        -90.0
+      ]
+    },
+    {
+      "id": "stand_angle_br_y",
+      "type": "angle_bracket",
+      "params": {
+        "profile": "2020",
+        "arm": 30.0,
+        "t": 4.0,
+        "size": "M5",
+        "ribs": true,
+        "filament": "pla"
+      },
+      "pos": [
+        120.0,
+        90.0,
+        130.0
+      ],
+      "rot": [
+        -180.0,
+        0.0,
+        -180.0
+      ]
+    },
+    {
+      "id": "stand_angle_br_x",
+      "type": "angle_bracket",
+      "params": {
+        "profile": "2020",
+        "arm": 30.0,
+        "t": 4.0,
+        "size": "M5",
+        "ribs": true,
+        "filament": "pla"
+      },
+      "pos": [
+        130.0,
+        80.0,
+        130.0
+      ],
+      "rot": [
+        -180.0,
+        0.0,
+        90.0
+      ]
+    },
+    {
+      "id": "stand_angle_bl_y",
+      "type": "angle_bracket",
+      "params": {
+        "profile": "2020",
+        "arm": 30.0,
+        "t": 4.0,
+        "size": "M5",
+        "ribs": true,
+        "filament": "pla"
+      },
+      "pos": [
+        -120.0,
+        90.0,
+        130.0
+      ],
+      "rot": [
+        -180.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "stand_angle_bl_x",
+      "type": "angle_bracket",
+      "params": {
+        "profile": "2020",
+        "arm": 30.0,
+        "t": 4.0,
+        "size": "M5",
+        "ribs": true,
+        "filament": "pla"
+      },
+      "pos": [
+        -130.0,
+        80.0,
+        130.0
+      ],
+      "rot": [
+        -180.0,
+        0.0,
+        90.0
+      ]
+    },
+    {
+      "id": "shaft1",
+      "type": "shaft",
+      "params": {
+        "dia": 8.0,
+        "length": 120.0
+      },
+      "pos": [
+        -20.0,
+        -20.0,
+        133.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "shaft2",
+      "type": "shaft",
+      "params": {
+        "dia": 8.0,
+        "length": 120.0
+      },
+      "pos": [
+        20.0,
+        -20.0,
+        133.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "shaft3",
+      "type": "shaft",
+      "params": {
+        "dia": 8.0,
+        "length": 120.0
+      },
+      "pos": [
+        20.0,
+        20.0,
+        133.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "shaft4",
+      "type": "shaft",
+      "params": {
+        "dia": 8.0,
+        "length": 120.0
+      },
+      "pos": [
+        -20.0,
+        20.0,
+        133.0
       ],
       "rot": [
         0.0,
