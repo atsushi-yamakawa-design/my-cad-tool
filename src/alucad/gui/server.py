@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 import warnings
@@ -46,15 +47,20 @@ class AssemblySpec(BaseModel):
 def create_app(designs_dir: Path | None = None) -> FastAPI:
     designs = Path(designs_dir) if designs_dir else DEFAULT_DESIGNS
     app = FastAPI(title="alucad")
+    # 形を扱う処理は1つずつ順番に。OpenCascade は別スレッドで本当に同時に動くので、
+    # 同じ形（キャッシュで共有）を同時に三角形分割・ブーリアンすると壊れる（Triangulation が None になる）
+    geometry_lock = asyncio.Lock()
 
     @app.middleware("http")
     async def reload_user_parts(request: Request, call_next):
-        """parts/ のファイルが変わっていたら、部品を登録し直してから処理する。"""
-        if request.url.path.startswith("/api/"):
+        """parts/ のファイルが変わっていたら部品を登録し直してから、API を1つずつ順番に処理する。"""
+        if not request.url.path.startswith("/api/"):
+            return await call_next(request)
+        async with geometry_lock:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")  # 読み込みエラーは /api/watch で画面に伝える
                 userparts.load()
-        return await call_next(request)
+            return await call_next(request)
 
     # ---- 変更の見張り（画面が1秒ごとに問い合わせる） ----
     @app.get("/api/watch")
