@@ -36,11 +36,11 @@ export const api = {
   designs: () => call<{ designs: string[]; dir: string }>("GET", "/api/designs"),
   load: (name: string) =>
     call<{ assembly: AssemblySpec; stamp: string }>("GET", `/api/designs/${encodeURIComponent(name)}`),
-  // base: 読み込んだときの版の印。ファイルが外で変わっていたら 409 で止まる
+  // base: 読み込んだときの版の印。ファイルが外で変わっていたら 409 で止まる。assembly は保存した内容（サーバーで整えたもの）
   save: (name: string, asm: AssemblySpec, base: string | null) =>
-    call<{ saved: string; stamp: string }>("PUT", `/api/designs/${encodeURIComponent(name)}?base=${base ?? ""}`, asm),
+    call<{ saved: string; stamp: string; assembly: AssemblySpec }>("PUT", `/api/designs/${encodeURIComponent(name)}?base=${base ?? ""}`, asm),
   build: (name: string, asm: AssemblySpec, base: string | null) =>
-    call<{ files: string[]; warnings: string[]; stamp: string }>(
+    call<{ files: string[]; warnings: string[]; stamp: string; assembly: AssemblySpec }>(
       "POST",
       `/api/designs/${encodeURIComponent(name)}/build?base=${base ?? ""}`,
       asm,

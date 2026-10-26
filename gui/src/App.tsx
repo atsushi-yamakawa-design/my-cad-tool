@@ -102,9 +102,10 @@ export function App() {
       {conflict && (
         <div className="conflict">
           <span>
-            {name}.json が外部（Claude Code など）で変更されました。こちらにも保存していない変更があります。
+            {name}.json の外部（Claude Code など）の変更を合わせました。ただし {conflict.ids.join("、")}{" "}
+            はこちらでも変えています。どちらにしますか？
           </span>
-          <button onClick={() => useStore.getState().reloadFromDisk()}>外部の変更を読み込む</button>
+          <button onClick={() => useStore.getState().takeTheirs()}>外部の内容にする</button>
           <button onClick={() => useStore.getState().keepMine()}>こちらの内容を残す</button>
         </div>
       )}

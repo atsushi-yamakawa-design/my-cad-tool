@@ -108,6 +108,8 @@ def test_save_conflict_when_changed_outside(client, tmp_path):
     # 新しい stamp なら保存できる
     r = client.put("/api/designs/stand", params={"base": changed}, json=asm)
     assert r.status_code == 200 and r.json()["stamp"] != changed
+    # 保存した内容（サーバーで整えたもの）が返る。画面はこれを次のマージの基準にする
+    assert r.json()["assembly"] == client.get("/api/designs/stand").json()["assembly"]
 
 
 def test_watch_reports_parts_state(client):

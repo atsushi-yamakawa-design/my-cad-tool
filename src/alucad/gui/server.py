@@ -136,7 +136,7 @@ def create_app(designs_dir: Path | None = None) -> FastAPI:
         asm = _assembly(spec)
         asm.name = name
         asm.save(path)
-        return {"saved": str(path), "stamp": _stamp(path)}
+        return {"saved": str(path), "stamp": _stamp(path), "assembly": asm.to_dict()}
 
     @app.post("/api/designs/{name}/build")
     def build_design(name: str, spec: AssemblySpec, base: str = ""):
@@ -145,7 +145,12 @@ def create_app(designs_dir: Path | None = None) -> FastAPI:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             paths = build_files(_design_path(designs, name))
-        return {"files": [str(p) for p in paths], "warnings": [str(w.message) for w in caught], "stamp": saved["stamp"]}
+        return {
+            "files": [str(p) for p in paths],
+            "warnings": [str(w.message) for w in caught],
+            "stamp": saved["stamp"],
+            "assembly": saved["assembly"],
+        }
 
     # ---- 画面（ビルド済みの静的ファイル） ----
     if STATIC.exists():
