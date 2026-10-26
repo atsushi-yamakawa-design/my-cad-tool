@@ -1,11 +1,11 @@
 // 上のツールバー: デザインの切り替え・保存・Undo/Redo・書き出し・チェック結果
 
 import { useEffect, useState } from "react";
-import { useStore } from "../store";
+import { SNAP_CHOICES, useStore } from "../store";
 
 export function Toolbar() {
-  const { designs, name, dirty, past, future, issues } = useStore();
-  const { openDesign, newDesign, setName, save, build, undo, redo } = useStore.getState();
+  const { designs, name, dirty, past, future, issues, tool, snap } = useStore();
+  const { openDesign, newDesign, setName, save, build, undo, redo, setTool, setSnap } = useStore.getState();
   const [draft, setDraft] = useState(name);
   useEffect(() => setDraft(name), [name]);
 
@@ -54,6 +54,23 @@ export function Toolbar() {
       <button onClick={redo} disabled={!future.length} title="やり直す（⇧⌘Z）">
         やり直す
       </button>
+
+      <span className="sep" />
+      <span className="seg" role="group" aria-label="3D 上の操作">
+        <button className={tool === "move" ? "on" : ""} onClick={() => setTool("move")} title="矢印で動かす（W）">
+          移動
+        </button>
+        <button className={tool === "rotate" ? "on" : ""} onClick={() => setTool("rotate")} title="輪で回す（E）。90° ずつは R">
+          回転
+        </button>
+      </span>
+      <select value={snap} onChange={(e) => setSnap(Number(e.target.value))} title="グリッドスナップ（矢印キーで動かす幅も同じ）">
+        {SNAP_CHOICES.map((v) => (
+          <option key={v} value={v}>
+            {v ? `スナップ ${v}mm` : "スナップなし"}
+          </option>
+        ))}
+      </select>
 
       <span className="grow" />
       <span className={`check-badge ${errors ? "error" : warnings ? "warning" : "ok"}`} title="加工前チェック">

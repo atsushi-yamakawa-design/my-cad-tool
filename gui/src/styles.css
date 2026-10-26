@@ -83,6 +83,12 @@ textarea.bad { border-color: var(--danger); }
 .brand { font-weight: 700; letter-spacing: 0.02em; margin-right: 8px; }
 .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
 .grow { flex: 1; }
+.seg { display: inline-flex; }
+.seg button { border-radius: 0; }
+.seg button + button { margin-left: -1px; }
+.seg button:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.seg button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.seg button.on { background: #e8f0fe; border-color: var(--accent); color: var(--accent); position: relative; }
 .design-name { width: 140px; }
 .dirty { color: transparent; font-size: 10px; }
 .dirty.on { color: var(--warn); }
@@ -133,6 +139,8 @@ textarea.bad { border-color: var(--danger); }
 .field-wide { grid-template-columns: 1fr; }
 .field-input select, .field-input > input:not([type="checkbox"]) { width: 100%; }
 .field-error { grid-column: 1 / -1; color: var(--danger); font-size: 12px; }
+.rot90 { display: flex; gap: 4px; }
+.rot90 button { flex: 1; }
 .props-actions { display: flex; gap: 6px; margin-top: 16px; }
 
 .num {

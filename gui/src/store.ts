@@ -2,13 +2,34 @@
 
 import { create } from "zustand";
 import { api, ApiError, clearMeshCache } from "./api";
-import type { AssemblySpec, Catalog, Issue, PartSpec } from "./types";
+import { cleanMm, rotateWorld } from "./transform";
+import type { AssemblySpec, Catalog, Issue, PartSpec, Vec3 } from "./types";
 
 const HISTORY_LIMIT = 200;
 export const NAME_RE = /^[\w-]+$/;
 
 function emptyAssembly(name = "untitled"): AssemblySpec {
   return { version: 1, units: "mm", up: "Z", name, parts: [] };
+}
+
+export type Tool = "move" | "rotate";
+export const SNAP_CHOICES = [0, 1, 5, 10, 20];
+
+/** 画面の好み（スナップ幅など）はブラウザに覚えておく。使えないときは既定値 */
+function loadPref<T>(key: string, fallback: T): T {
+  try {
+    const v = window.localStorage.getItem(`alucad.${key}`);
+    return v === null ? fallback : (JSON.parse(v) as T);
+  } catch {
+    return fallback;
+  }
+}
+function savePref(key: string, value: unknown) {
+  try {
+    window.localStorage.setItem(`alucad.${key}`, JSON.stringify(value));
+  } catch {
+    /* 覚えられなくても動作には困らない */
+  }
 }
 
 function uniqueId(base: string, taken: Set<string>): string {
@@ -40,6 +61,8 @@ interface State {
   partsStamp: string | null; // parts/ フォルダの版の印
   meshEpoch: number; // 形状を取り直すたびに増やす
   conflict: boolean; // 外部でファイルが変わったが、こちらにも未保存の変更がある
+  tool: Tool; // 3D 上の矢印で「移動」するか「回転」するか
+  snap: number; // グリッドスナップの間隔（mm、0 で無し）
 
   poll: () => Promise<void>;
   reloadFromDisk: () => Promise<void>;
@@ -59,6 +82,10 @@ interface State {
   removePart: (id: string) => void;
   explode: (id: string) => Promise<void>;
   select: (id: string | null) => void;
+  setTool: (tool: Tool) => void;
+  setSnap: (snap: number) => void;
+  nudge: (axis: 0 | 1 | 2, steps: number) => void;
+  rotate90: (axis: 0 | 1 | 2, sign?: 1 | -1) => void;
   undo: () => void;
   redo: () => void;
 
@@ -81,6 +108,8 @@ export const useStore = create<State>((set, get) => ({
   partsStamp: null,
   meshEpoch: 0,
   conflict: false,
+  tool: "move",
+  snap: loadPref("snap", 5),
 
   init: async () => {
     const [catalog, { designs }] = await Promise.all([api.catalog(), api.designs()]);
@@ -259,6 +288,31 @@ export const useStore = create<State>((set, get) => ({
   },
 
   select: (id) => set({ selected: id }),
+
+  setTool: (tool) => set({ tool }),
+
+  setSnap: (snap) => {
+    savePref("snap", snap);
+    set({ snap });
+  },
+
+  /** 選んでいる部品をスナップ間隔ぶん動かす（スナップ無しなら 1mm） */
+  nudge: (axis, steps) => {
+    const { selected, asm, snap } = get();
+    const part = asm.parts.find((p) => p.id === selected);
+    if (!part) return;
+    const pos = [...part.pos] as Vec3;
+    pos[axis] = cleanMm(pos[axis] + steps * (snap || 1));
+    get().updatePart(part.id, { pos });
+  },
+
+  /** 選んでいる部品を、ワールドの軸まわりに 90° 回す */
+  rotate90: (axis, sign = 1) => {
+    const { selected, asm } = get();
+    const part = asm.parts.find((p) => p.id === selected);
+    if (!part) return;
+    get().updatePart(part.id, { rot: rotateWorld(part.rot, axis, 90 * sign) });
+  },
 
   undo: () => {
     const { past, future, asm, selected } = get();

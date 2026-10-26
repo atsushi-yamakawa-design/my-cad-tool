@@ -59,6 +59,26 @@ export function App() {
         s.removePart(s.selected);
       } else if (e.key === "Escape") {
         s.select(null);
+      } else if (mod || e.altKey) {
+        return;
+      } else if (e.key.toLowerCase() === "w") {
+        s.setTool("move");
+      } else if (e.key.toLowerCase() === "e") {
+        s.setTool("rotate");
+      } else if (e.key.toLowerCase() === "r" && s.selected) {
+        // R: 上から見て反時計回りに 90°（Shift で逆回り）
+        s.rotate90(2, e.shiftKey ? -1 : 1);
+      } else if (e.key.startsWith("Arrow") && s.selected) {
+        // 矢印キー: 床の上で前後左右に動かす（Shift で 10 倍）。PageUp/Down で上下
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        if (e.key === "ArrowLeft") s.nudge(0, -step);
+        if (e.key === "ArrowRight") s.nudge(0, step);
+        if (e.key === "ArrowUp") s.nudge(1, step);
+        if (e.key === "ArrowDown") s.nudge(1, -step);
+      } else if ((e.key === "PageUp" || e.key === "PageDown") && s.selected) {
+        e.preventDefault();
+        s.nudge(2, (e.shiftKey ? 10 : 1) * (e.key === "PageUp" ? 1 : -1));
       }
     };
     const onBeforeUnload = (e: BeforeUnloadEvent) => {

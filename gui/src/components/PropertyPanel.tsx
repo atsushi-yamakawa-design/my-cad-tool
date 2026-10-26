@@ -21,7 +21,7 @@ export function PropertyPanel() {
 
 function PartProps({ part }: { part: PartSpec }) {
   const def = componentDef(part.type);
-  const { updatePart, renamePart, removePart, explode, notify } = useStore.getState();
+  const { updatePart, renamePart, removePart, explode, notify, rotate90 } = useStore.getState();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [id, setId] = useState(part.id);
   useEffect(() => setId(part.id), [part.id]);
@@ -74,6 +74,21 @@ function PartProps({ part }: { part: PartSpec }) {
         <h3>配置</h3>
         <VecRow label="位置" unit="mm" value={part.pos} onChange={(i, v) => setVec("pos", i, v)} />
         <VecRow label="回転" unit="°" value={part.rot} onChange={(i, v) => setVec("rot", i, v)} />
+        <div className="field">
+          <label>90° 回す</label>
+          <div className="rot90">
+            {(["X", "Y", "Z"] as const).map((axis, i) => (
+              <button
+                key={axis}
+                className="small"
+                onClick={(e) => rotate90(i as 0 | 1 | 2, e.shiftKey ? -1 : 1)}
+                title={`${axis} 軸まわりに 90°（Shift で逆回り）${axis === "Z" ? "。R キーでも同じ" : ""}`}
+              >
+                {axis}
+              </button>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="props-actions">
