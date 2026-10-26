@@ -12,6 +12,7 @@ from build123d import Location, Plane, Vector
 
 from . import flat, materials, profiles
 from .bracket import l_bracket
+from .printed import angle_bracket
 from .frame import frame
 from .mounting import frame_holes
 from .panel import panel
@@ -30,12 +31,14 @@ from .registry import Anchor, Geometry, Param, component
         Param("profile", str, "2020", unit="", choices=tuple(profiles.PROFILES), label="フレーム断面"),
         Param("top_mat", str, "mdf3", unit="", choices=flat.MAT.choices, label="天板の材料"),
         Param("top_r", float, 4.0, min=0, label="天板の角R"),
-        Param("brackets", bool, True, unit="", label="L字プレートを付ける"),
+        Param("brackets", bool, True, unit="", label="角の金具を付ける"),
+        Param("bracket_type", str, "plate", unit="", choices=("plate", "angle"),
+              label="金具の種類（plate=L字プレート / angle=L字アングル）"),
         Param("bracket_mat", str, "acrylic5", unit="", choices=flat.MAT.choices, label="プレートの材料"),
         Param("size", str, "M5", unit="", choices=("M3", "M4", "M5", "M6"), label="ネジ"),
     ],
 )
-def _build_stand(w, d, h, profile, top_mat, top_r, brackets, bracket_mat, size) -> Geometry:
+def _build_stand(w, d, h, profile, top_mat, top_r, brackets, bracket_type, bracket_mat, size) -> Geometry:
     s = profiles.get(profile).size
     cx, cy = w / 2 - s / 2, d / 2 - s / 2  # 脚の中心
     zr = h - s / 2  # 横桟の中心の高さ（上面が天板の下面にそろう）
@@ -54,7 +57,20 @@ def _build_stand(w, d, h, profile, top_mat, top_r, brackets, bracket_mat, size) 
     top = top.with_params(holes=frame_holes(top, legs + rails, size=size))
     children = legs + rails + [top]
 
-    if brackets:
+    if brackets and bracket_type == "angle":
+        # 脚と横桟の内側の角に1個ずつ（脚1本につき2個）。横の腕は横桟の下面、縦の腕は脚の内側の面に当たる
+        for sx, sy, tag in ((-1, -1, "fl"), (1, -1, "fr"), (1, 1, "br"), (-1, 1, "bl")):
+            for face, corner, along in (
+                ("y", (sx * (w / 2 - s), sy * cy, h - s), (-sx, 0, 0)),  # 前後の横桟の下
+                ("x", (sx * cx, sy * (d / 2 - s), h - s), (0, -sy, 0)),  # 左右の横桟の下
+            ):
+                # アングルのローカルX（床側の腕）を横桟に沿わせ、ローカルZ（立ち上がる腕）を下に向ける
+                loc = Location(Plane(origin=corner, x_dir=along, z_dir=(0, 0, -1)))
+                children.append(
+                    angle_bracket(profile, size=size).at(*loc.position).rot(*loc.orientation)
+                    .named(f"angle_{tag}_{face}")
+                )
+    elif brackets:
         bt = materials.get(bracket_mat).t
         for sx, sy, tag in ((-1, -1, "fl"), (1, -1, "fr"), (1, 1, "br"), (-1, 1, "bl")):
             corner = Vector(sx * w / 2, sy * d / 2, h)  # 脚の上端の外側の角
@@ -83,13 +99,14 @@ def _on_face(p: Part, corner: Vector, u: Vector, v: Vector, outward: Vector, t: 
 
 
 def frame_stand(w=280, d=200, h=150, profile="2020", top_mat="mdf3", top_r=4, brackets=True,
-                bracket_mat="acrylic5", size="M5", **place_kw) -> Part:
-    """2020/3030フレームの台（脚4本＋横桟4本＋天板＋L字プレート）。天板の穴は自動計算。
+                bracket_type="plate", bracket_mat="acrylic5", size="M5", **place_kw) -> Part:
+    """2020/3030フレームの台（脚4本＋横桟4本＋天板＋角の金具8個）。天板の穴は自動計算。
 
-    例: frame_stand(280, 200, 150)
+    bracket_type: "plate"（外側に貼るL字プレート）か "angle"（内側の角に入れる3DプリントのL字アングル）
+    例: frame_stand(280, 200, 150, bracket_type="angle")
     """
     p = make(
         "frame_stand", w=w, d=d, h=h, profile=profile, top_mat=top_mat, top_r=top_r,
-        brackets=brackets, bracket_mat=bracket_mat, size=size,
+        brackets=brackets, bracket_type=bracket_type, bracket_mat=bracket_mat, size=size,
     )
     return place(p, **place_kw)

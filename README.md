@@ -194,7 +194,7 @@ DXFを ezdxf で読み戻して、外形寸法・穴径・穴位置・輪郭が�
 | `panel(w, h, mat="mdf3", r=0, holes=[], engrave=[], score=[])` | 板。原点は板の中心（下面）。`holes=[[x, y, "M4"], ...]`。板厚は材料で決まる |
 | `l_bracket(profile="2020", arm=60, mat="acrylic5", size="M5", n=2)` | L字プレート。穴はフレーム中心線上 |
 | `corner_bracket(profile="2020", arm=80, mat="acrylic5", size="M5")` | 三角プレート（ガセット） |
-| `frame_stand(w, d, h, profile="2020", top_mat="mdf3", brackets=True)` | キット: 脚4本＋横桟4本＋天板＋L字プレート8枚 |
+| `frame_stand(w, d, h, profile="2020", top_mat="mdf3", brackets=True, bracket_type="plate")` | キット: 脚4本＋横桟4本＋天板＋角の金具8個（`"plate"`=L字プレート ／ `"angle"`=3DプリントのL字アングル） |
 | `finger_box(w, d, h, mat="mdf3", finger=10, fit=0.0, lid=True)` | キット: フィンガージョイントの箱（外寸指定）。5〜6枚の板 |
 | `box_face(w, h, mat, edges="AAAA", finger=10, fit=0.0)` | フィンガージョイントの板1枚。edges は下・右・上・左に A（凸始まり）/ B（凹始まり）/ -（まっすぐ） |
 | `frame_holes(plate, frames, size="M5", pitch=150)` | 板の下に接するフレームから、取り付け穴を自動計算 |
