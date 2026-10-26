@@ -1,19 +1,59 @@
-/* 仮の見た目（グレー基調）。本格的なデザインは 4b 以降で差し替える */
+/* 仮の見た目（グレー基調）。ライト／ダークは設定（⚙）で切り替え。本格的なデザインは後で差し替える */
 :root {
+  /* 色はすべてここのトークンで指定する。ダークは下の [data-theme="dark"] で上書き */
   --bg: #f6f7f9;
   --panel: #ffffff;
+  --field: #ffffff; /* 入力欄・ボタンの地 */
+  --hover: #f3f4f6;
   --line: #e1e4e8;
+  --line-strong: #c4c9d0;
   --text: #1f2328;
   --muted: #6b7280;
   --accent: #2f7cf6;
+  --accent-hover: #1f6be0;
+  --accent-soft: #e8f0fe;
+  --focus: #bcd4fb;
   --danger: #d1453b;
+  --danger-soft: #fde8e7;
   --warn: #b7791f;
+  --warn-soft: #fdf3e1;
+  --warn-line: #f0c36d;
   --ok: #2f855a;
+  --ok-soft: #e6f4ea;
+  --toast: #1f2328;
+  --toast-text: #ffffff;
+  --shadow: rgb(0 0 0 / 0.15);
   --radius: 6px;
+  color-scheme: light;
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
   font-size: 13px;
   color: var(--text);
   background: var(--bg);
+}
+:root[data-theme="dark"] {
+  --bg: #16181c;
+  --panel: #1e2126;
+  --field: #262a30;
+  --hover: #2d3239;
+  --line: #33383f;
+  --line-strong: #4a5059;
+  --text: #e4e7eb;
+  --muted: #9198a3;
+  --accent: #4b8ff7;
+  --accent-hover: #6aa3fa;
+  --accent-soft: #1e3254;
+  --focus: #2c4f86;
+  --danger: #f0675c;
+  --danger-soft: #3d2120;
+  --warn: #e0a84a;
+  --warn-soft: #3a2f1a;
+  --warn-line: #7a5c22;
+  --ok: #5cc28a;
+  --ok-soft: #1b3326;
+  --toast: #e4e7eb;
+  --toast-text: #16181c;
+  --shadow: rgb(0 0 0 / 0.45);
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -44,26 +84,26 @@ html, body, #root { margin: 0; height: 100%; }
 button, select, input, textarea { font: inherit; color: inherit; }
 button {
   border: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--field);
   border-radius: var(--radius);
   padding: 4px 10px;
   cursor: pointer;
 }
-button:hover:not(:disabled) { border-color: #c4c9d0; background: #f3f4f6; }
+button:hover:not(:disabled) { border-color: var(--line-strong); background: var(--hover); }
 button:disabled { opacity: 0.4; cursor: default; }
 button.primary { background: var(--accent); border-color: var(--accent); color: white; }
-button.primary:hover { background: #1f6be0; }
+button.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 button.danger { color: var(--danger); }
 button.small { padding: 2px 8px; font-size: 12px; }
-button.icon { padding: 0 6px; border: none; color: var(--muted); }
+button.icon { padding: 0 6px; border: none; background: transparent; color: var(--muted); }
 input, select, textarea {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 3px 6px;
-  background: white;
+  background: var(--field);
   min-width: 0;
 }
-input:focus, select:focus, textarea:focus { outline: 2px solid #bcd4fb; border-color: var(--accent); }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--focus); border-color: var(--accent); }
 textarea { width: 100%; font-family: ui-monospace, Menlo, monospace; font-size: 12px; resize: vertical; }
 textarea.bad { border-color: var(--danger); }
 
@@ -88,14 +128,14 @@ textarea.bad { border-color: var(--danger); }
 .seg button + button { margin-left: -1px; }
 .seg button:first-child { border-radius: var(--radius) 0 0 var(--radius); }
 .seg button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
-.seg button.on { background: #e8f0fe; border-color: var(--accent); color: var(--accent); position: relative; }
+.seg button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); position: relative; }
 .design-name { width: 140px; }
 .dirty { color: transparent; font-size: 10px; }
 .dirty.on { color: var(--warn); }
 .check-badge { font-size: 12px; padding: 2px 8px; border-radius: 99px; }
-.check-badge.ok { color: var(--ok); background: #e6f4ea; }
-.check-badge.warning { color: var(--warn); background: #fdf3e1; }
-.check-badge.error { color: var(--danger); background: #fde8e7; }
+.check-badge.ok { color: var(--ok); background: var(--ok-soft); }
+.check-badge.warning { color: var(--warn); background: var(--warn-soft); }
+.check-badge.error { color: var(--danger); background: var(--danger-soft); }
 
 /* ---- パネル共通 ---- */
 .panel { background: var(--panel); overflow: auto; }
@@ -117,6 +157,7 @@ textarea.bad { border-color: var(--danger); }
   text-align: left;
   margin-bottom: 4px;
   border-color: transparent;
+  background: transparent;
 }
 .palette-item:hover { border-color: var(--line); }
 
@@ -148,11 +189,11 @@ textarea.bad { border-color: var(--danger); }
   align-items: center;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: white;
+  background: var(--field);
   width: 100%;
 }
-.num:focus-within { outline: 2px solid #bcd4fb; border-color: var(--accent); }
-.num input { border: none; outline: none; width: 100%; text-align: right; padding: 3px 4px; }
+.num:focus-within { outline: 2px solid var(--focus); border-color: var(--accent); }
+.num input { border: none; outline: none; background: transparent; width: 100%; text-align: right; padding: 3px 4px; }
 .num-unit, .num-prefix { color: var(--muted); font-size: 11px; padding: 0 6px; }
 .num-prefix { padding-right: 0; font-weight: 600; }
 .vec { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
@@ -166,7 +207,7 @@ textarea.bad { border-color: var(--danger); }
 /* ---- 下のパネル ---- */
 .bottom { grid-area: bottom; min-width: 0; min-height: 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; }
 .tabs { display: flex; gap: 2px; padding: 6px 10px 0; border-bottom: 1px solid var(--line); }
-.tabs button { border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 4px 10px; }
+.tabs button { background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 4px 10px; }
 .tabs button.on { border-bottom-color: var(--accent); font-weight: 600; }
 .tabs button.collapse { margin-left: auto; color: var(--muted); font-size: 10px; }
 .bottom-collapsed .bottom-body { display: none; }
@@ -188,19 +229,19 @@ textarea.bad { border-color: var(--danger); }
   left: 50%;
   bottom: calc(var(--bottom-h, 190px) + 16px);
   transform: translateX(-50%);
-  background: #1f2328;
-  color: white;
+  background: var(--toast);
+  color: var(--toast-text);
   padding: 8px 14px;
   border-radius: var(--radius);
-  box-shadow: 0 6px 20px rgb(0 0 0 / 0.15);
+  box-shadow: 0 6px 20px var(--shadow);
   max-width: 70vw;
 }
-.notice.error { background: var(--danger); }
+.notice.error { background: var(--danger); color: white; }
 
 .tag {
   font-size: 10px;
   color: var(--accent);
-  background: #e8f0fe;
+  background: var(--accent-soft);
   border-radius: 4px;
   padding: 0 4px;
   margin-left: 6px;
@@ -213,10 +254,30 @@ textarea.bad { border-color: var(--danger); }
   display: flex;
   gap: 8px;
   align-items: center;
-  background: #fff8e6;
-  border: 1px solid #f0c36d;
+  background: var(--warn-soft);
+  border: 1px solid var(--warn-line);
   border-radius: var(--radius);
   padding: 8px 12px;
-  box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+  box-shadow: 0 6px 20px var(--shadow);
   z-index: 10;
 }
+
+/* ---- 設定（⚙） ---- */
+.settings { position: relative; }
+.settings > button { padding: 4px 8px; }
+.settings-pop {
+  position: fixed;
+  top: 48px;
+  right: 10px;
+  z-index: 20;
+  width: 260px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px var(--shadow);
+  white-space: normal;
+}
+.settings-pop h3 { margin-top: 0; }
+.settings-pop .seg { display: flex; }
+.settings-pop .seg button { flex: 1; }

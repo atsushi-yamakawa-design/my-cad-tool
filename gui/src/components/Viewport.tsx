@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { fetchMesh } from "../api";
 import { useStore } from "../store";
+import { useTheme, VIEW_COLORS } from "../theme";
 import { cleanMm, DEG, degToEuler, eulerToDeg } from "../transform";
 import type { MeshData, Params, PartSpec, Vec3 } from "../types";
 
@@ -19,6 +20,7 @@ export function Viewport() {
   const selected = useStore((s) => s.selected);
   const select = useStore((s) => s.select);
   const snap = useStore((s) => s.snap);
+  const colors = VIEW_COLORS[useTheme((s) => s.theme)];
   // 選んでいる部品の group。矢印（TransformControls）はこれを直接動かす
   const [target, setTarget] = useState<THREE.Object3D | null>(null);
   // 矢印をつかんでいる間と離した直後は、空クリック扱いで選択を外さない（離したときにも click が飛んでくるため）
@@ -33,8 +35,8 @@ export function Viewport() {
       camera={{ position: [450, -600, 420], up: [0, 0, 1], fov: 35, near: 1, far: 20000 }}
       onPointerMissed={missed}
     >
-      <color attach="background" args={["#eef0f3"]} />
-      <hemisphereLight args={["#ffffff", "#b0b4bb", 1.2]} />
+      <color attach="background" args={[colors.bg]} />
+      <hemisphereLight args={["#ffffff", colors.ground, 1.2]} />
       <directionalLight position={[400, -500, 900]} intensity={1.6} />
       <directionalLight position={[-500, 300, 200]} intensity={0.5} />
       {/* drei の Grid は XZ 平面なので、Z が上の座標系に合わせて寝かせる */}
@@ -42,8 +44,8 @@ export function Viewport() {
         rotation={[Math.PI / 2, 0, 0]}
         cellSize={snap >= 5 ? snap : 10}
         sectionSize={100}
-        cellColor="#cfd3da"
-        sectionColor="#a9afb9"
+        cellColor={colors.cell}
+        sectionColor={colors.section}
         infiniteGrid
         fadeDistance={4000}
       />
@@ -148,6 +150,7 @@ function MeshView({
   selected: boolean;
   onClick: (e: ThreeEvent<MouseEvent>) => void;
 }) {
+  const edge = VIEW_COLORS[useTheme((s) => s.theme)].edge;
   const geometry = useMemo(() => {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(data.vertices, 3));
@@ -169,7 +172,7 @@ function MeshView({
         polygonOffsetFactor={1}
         polygonOffsetUnits={1}
       />
-      <Edges threshold={25} color={selected ? SELECT_COLOR : "#4a505a"} />
+      <Edges threshold={25} color={selected ? SELECT_COLOR : edge} />
     </mesh>
   );
 }

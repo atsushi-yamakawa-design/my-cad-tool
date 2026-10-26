@@ -1,7 +1,8 @@
 // 上のツールバー: デザインの切り替え・保存・Undo/Redo・書き出し・チェック結果
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SNAP_CHOICES, useStore } from "../store";
+import { useTheme, type ThemePref } from "../theme";
 
 export function Toolbar() {
   const { designs, name, dirty, past, future, issues, tool, snap } = useStore();
@@ -79,6 +80,54 @@ export function Toolbar() {
       <button className="primary" onClick={build} title="保存して DXF / STEP / GLB / 部品表 を designs/out/ に書き出す">
         書き出し
       </button>
+      <Settings />
     </header>
+  );
+}
+
+const THEME_CHOICES: [ThemePref, string][] = [
+  ["system", "システム"],
+  ["light", "ライト"],
+  ["dark", "ダーク"],
+];
+
+/** ⚙ ボタンと設定の小窓。外をクリックするか Esc で閉じる */
+function Settings() {
+  const [open, setOpen] = useState(false);
+  const pref = useTheme((s) => s.pref);
+  const setPref = useTheme((s) => s.setPref);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="settings" ref={ref}>
+      <button onClick={() => setOpen(!open)} title="設定" aria-expanded={open}>
+        ⚙
+      </button>
+      {open && (
+        <div className="settings-pop" role="dialog" aria-label="設定">
+          <h3>テーマ</h3>
+          <span className="seg" role="group" aria-label="テーマ">
+            {THEME_CHOICES.map(([v, label]) => (
+              <button key={v} className={pref === v ? "on" : ""} onClick={() => setPref(v)}>
+                {label}
+              </button>
+            ))}
+          </span>
+          <p className="hint">「システム」は Mac の外観（ライト／ダーク）に合わせます。</p>
+        </div>
+      )}
+    </div>
   );
 }
