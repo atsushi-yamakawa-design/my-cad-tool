@@ -1,6 +1,7 @@
 """カーフ（切断幅）測定用のテストピース。
 
 実行: uv run python examples/kerf_test.py mdf3        ← 材料キー（materials.toml）を指定
+      uv run python examples/kerf_test.py mdf3 --out ~/どこか/フォルダ   ← 書き出し先を変える
 出力（examples/out/）:
   kerf_test_<材料>_off.dxf  補正なし。これを切ってカーフを測る
   kerf_test_<材料>_on.dxf   補正あり（今の materials.toml の値）。測った値を入れた後の確認用
@@ -18,9 +19,14 @@ from pathlib import Path
 
 from alucad import MATERIALS, export_dxf, panel
 
+args = sys.argv[1:]
 OUT = Path(__file__).parent / "out"
+if "--out" in args:
+    i = args.index("--out")
+    OUT = Path(args[i + 1]).expanduser()
+    del args[i : i + 2]
 
-mat = sys.argv[1] if len(sys.argv) > 1 else "mdf3"
+mat = args[0] if args else "mdf3"
 if mat not in MATERIALS:
     sys.exit(f"材料 {mat!r} は materials.toml にありません（{', '.join(MATERIALS)}）")
 kerf = MATERIALS[mat].kerf
