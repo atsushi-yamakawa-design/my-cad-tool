@@ -93,3 +93,13 @@ def test_cut_contour_is_closed(tmp_path, plate, compensate):
     assert pts
     for p in pts:
         assert sum((p - q).magnitude < 1e-6 for q in pts) >= 2
+
+
+def test_engraved_text_has_no_splines(tmp_path):
+    # Beam Studio が2次の SPLINE を読み落とすので、文字の曲線は折れ線で書く
+    p = panel(80, 40, engrave=[[0, 0, "OFF 8", 8]])
+    _, msp = _read(export_dxf(p, tmp_path / "t.dxf"))
+    assert not msp.query("SPLINE")
+    polys = msp.query('LWPOLYLINE[layer=="engrave"]')
+    assert len(polys) > 0
+    assert all(len(e) >= 2 for e in polys)

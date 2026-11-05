@@ -5,6 +5,10 @@ DXFのレイヤー:
   engrave … 刻印（黒）
   score   … 罫書き（青）
 
+曲線: 文字の輪郭などのスプライン（SPLINE）は、細かい折れ線（LWPOLYLINE）に置き換えて書く。
+Beam Studio は2次のスプラインを一部読み落とし、刻印が毎回同じ曲線部分で欠けたため（2026-11 実機で確認）。
+円・円弧（CIRCLE / ARC）はそのまま残す。
+
 カーフ補正: レーザーは線の中心から kerf/2 ずつ材料を溶かすので、
 切断線を「外形は外へ、穴は内へ」kerf/2 ずらしておくと、切り上がりが設計寸法になる。
 build123d の offset() に穴あきの面を渡すと、この両方が1回で正しく処理される。
@@ -17,6 +21,7 @@ import warnings
 from collections import defaultdict
 from pathlib import Path
 
+import ezdxf
 from build123d import Color, Compound, ExportDXF, Kind, Pos, Rot, Shape, Unit, export_gltf, export_stl, offset
 from build123d import export_step as _b3d_export_step
 from build123d.exporters import ColorIndex
@@ -32,6 +37,7 @@ LAYER_COLORS = {
     "score": ColorIndex.BLUE,
 }
 FRAME_COLOR = "silver"
+SPLINE_TOL = 0.01  # スプラインを折れ線にするときの、元の曲線からの最大のずれ（mm）
 
 
 def _parts(obj: Part | list[Part] | Assembly) -> list[Part]:
@@ -160,7 +166,23 @@ def _write(items, slots, path: Path) -> tuple[float, float]:
         used_h = max(used_h, slot.y + bb.size.Y)
     path.parent.mkdir(parents=True, exist_ok=True)
     dxf.write(path)
+    _flatten_splines(path)
     return used_w, used_h
+
+
+def _flatten_splines(path: Path, tol: float = SPLINE_TOL) -> None:
+    """DXF の SPLINE をすべて、同じレイヤー・同じ色の LWPOLYLINE（折れ線）に置き換える。"""
+    doc = ezdxf.readfile(path)
+    msp = doc.modelspace()
+    splines = list(msp.query("SPLINE"))
+    if not splines:
+        return
+    for sp in splines:
+        pts = [(v.x, v.y) for v in sp.flattening(tol)]
+        attribs = {"layer": sp.dxf.layer, "color": sp.dxf.get("color", 256)}
+        msp.add_lwpolyline(pts, close=sp.closed, dxfattribs=attribs)
+        msp.delete_entity(sp)
+    doc.saveas(path)
 
 
 def to_compound(obj: Part | list[Part] | Assembly, name: str = "assembly") -> Compound:
