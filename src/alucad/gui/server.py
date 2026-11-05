@@ -158,7 +158,8 @@ def create_app(designs_dir: Path | None = None) -> FastAPI:
 
         @app.get("/")
         def index():
-            return FileResponse(STATIC / "index.html")
+            # 画面をビルドし直したら新しい assets を読むように、index.html はキャッシュさせない
+            return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
 
     return app
 

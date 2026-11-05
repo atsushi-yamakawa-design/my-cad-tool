@@ -97,6 +97,18 @@ interface State {
   notify: (text: string, kind?: "info" | "error") => void;
 }
 
+/**
+ * 新規や名前を変えたデザイン（まだファイルと結び付いていない）を保存するとき、同じ名前のファイルがあれば確認する。
+ * 一覧は画面を開いたあとに Claude などが足したファイルもあるので、毎回サーバーに聞き直す
+ */
+async function confirmOverwrite(): Promise<boolean> {
+  const { name, stamp } = useStore.getState();
+  if (stamp) return true; // 開いたファイルへの保存。外での変更は版の印（409）で守られている
+  const { designs } = await api.designs();
+  useStore.setState({ designs });
+  return !designs.includes(name) || window.confirm(`${name}.json はすでにあります。上書きしますか？`);
+}
+
 export const useStore = create<State>((set, get) => ({
   catalog: null,
   designs: [],
@@ -233,10 +245,8 @@ export const useStore = create<State>((set, get) => ({
       get().notify("デザイン名に使えるのは英数字・_・- だけです", "error");
       return false;
     }
-    if (!get().stamp && get().designs.includes(name) && !window.confirm(`${name}.json はすでにあります。上書きしますか？`)) {
-      return false;
-    }
     try {
+      if (!(await confirmOverwrite())) return false;
       const res = await withMerge(() => api.save(name, { ...get().asm, name }, get().stamp));
       if (!res) return false;
       const { designs } = await api.designs();
@@ -260,6 +270,7 @@ export const useStore = create<State>((set, get) => ({
       return;
     }
     try {
+      if (!(await confirmOverwrite())) return;
       const res = await withMerge(() => api.build(name, { ...get().asm, name }, get().stamp));
       if (!res) return;
       const { designs } = await api.designs();
