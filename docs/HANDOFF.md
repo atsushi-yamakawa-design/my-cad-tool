@@ -25,6 +25,7 @@
 | GUI のビルド済みファイルは `src/alucad/gui/static/` にコミット | 持ち主の Mac に Node.js を入れずに済む |
 | 外部変更は 1秒ポーリング＋保存時の版チェック（409）＋部品 id ごとの3方向マージ（`gui/src/merge.ts`） | Claude Code と GUI を同時に使っても上書き事故が起きず、別々の部品への変更は両方残る。同じ部品を両方が変えたときだけ確認を出す |
 | 自作部品は `parts/*.py` に置くと自動登録・ホットリロード | チャットから部品を増やすため。本体（src/）は触らない |
+| 1つの用途の形は `projects/*.py`（パレットに出さない）。`parts/` への登録は持ち主が頼んだときだけ | パレットを使い回せる部品だけにしておくため（2026-11 に持ち主が依頼）。汎用そうなものは登録を提案する |
 | 3Dプリント部品は z=0 がベッド面、STL は同じ形をまとめて `_x個数` | そのままスライサーに入れられる |
 | DXF のパーツ間隔の既定は 3mm | 5mm だと箱の6枚が1シートに収まらなかった |
 
@@ -38,12 +39,14 @@
 
 ## まだ確かめていないこと（実物）
 
-1. **はめあいテストピースを切る**: `uv run python examples/joint_test.py mdf3` → Beam Studio で切る。
-   どの fit がちょうどいいか、40mm 方向の実測幅を聞く → `materials.toml` の kerf と finger_box の fit の標準値を決める
-2. **カーフ実測**: `examples/kerf_test.py`。材料ごと
-3. **Beam Studio の細部**: 刻印の文字（SPLINE）が崩れないか、外形が LINE/ARC のバラバラでも1本の輪郭として切れるか、
-   切る順番（穴→外形になっているか）。問題があれば DXF をポリライン化する
-4. **3Dプリント**: frame_foot のすき間 0.3mm、angle_bracket の強度。プリンタの機種を聞いて `materials.toml` の `[printer]` を埋める
+1. **はめあいテストピースを切る**: `uv run python examples/joint_test.py <材料> --out <フォルダ>` → Beam Studio で切る。
+   どの fit がちょうどいいか聞く → `materials.toml` の kerf と finger_box の fit の標準値を決める。
+   アクリル 3mm は kerf 0.20 で fit=0.0 がぴったり（2026-11-03）。MDF 3mm・MDF 5.5mm は未確認
+2. **カーフ実測**: `examples/kerf_test.py`。材料ごと。アクリル 3mm は 0.20mm（実測済み）。MDF 3mm・MDF 5.5mm は未測定
+3. **Beam Studio の細部**: ~~刻印の文字（SPLINE）が崩れないか~~ → 2026-11 に実機で、2次の SPLINE の曲線部分が毎回欠けると判明。
+   書き出し時に SPLINE を LWPOLYLINE（0.01mm 精度）に置き換えるよう直した（`export.py` の `_flatten_splines`）。直した版で欠けないかは未確認。
+   残り: 外形が LINE/ARC のバラバラでも1本の輪郭として切れるか、切る順番（穴→外形になっているか）
+4. **3Dプリント**: frame_foot のすき間 0.3mm、angle_bracket の強度。プリンタは Bambu Lab A1 mini（`materials.toml` の `[printer]` に設定済み）
 
 ## 次にやる候補（優先度順・僕の意見）
 
