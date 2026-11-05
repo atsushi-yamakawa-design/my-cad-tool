@@ -154,8 +154,8 @@ export const useStore = create<State>((set, get) => ({
       const catalog = await api.catalog();
       set({ catalog, meshEpoch: get().meshEpoch + 1 });
       const errs = Object.entries(w.parts_errors);
-      if (errs.length) get().notify(`parts/${errs[0][0]} を読み込めません: ${errs[0][1]}`, "error");
-      else get().notify("parts/ の部品を読み込み直しました");
+      if (errs.length) get().notify(`${errs[0][0]} を読み込めません: ${errs[0][1]}`, "error");
+      else get().notify("parts/・projects/ の部品を読み込み直しました");
     }
     set({ partsStamp: w.parts });
 

@@ -74,7 +74,7 @@ def test_broken_user_part_is_reported_not_fatal(tmp_parts):
     (tmp_parts / "bad.py").write_text("def oops(:\n", encoding="utf-8")
     with pytest.warns(UserWarning, match="bad.py"):
         userparts.load()
-    assert "bad.py" in userparts.errors() and "SyntaxError" in userparts.errors()["bad.py"]
+    assert "parts/bad.py" in userparts.errors() and "SyntaxError" in userparts.errors()["parts/bad.py"]
     assert "test_block" in REGISTRY  # ほかのファイルは読み込まれる
 
 
@@ -97,3 +97,19 @@ def test_user_part_in_assembly_json(tmp_parts, tmp_path):
     asm = Assembly("a", [make("test_block", w=12).named("b1")])
     back = Assembly.load(asm.save(tmp_path / "a.json"))
     assert back["b1"].params["w"] == 12
+
+
+def test_project_parts_are_registered_but_marked(tmp_path, monkeypatch):
+    """projects/<名前>.py の部品は使えるが、プロジェクト名が付く（GUI はパレットに出さない）。"""
+    monkeypatch.setenv("ALUCAD_PROJECTS", str(tmp_path))
+    (tmp_path / "my_project.py").write_text(PART_SRC.replace("{w}", "15.0"), encoding="utf-8")
+    userparts.load(force=True)
+    try:
+        assert make("test_block").solid().bounding_box().size.X == pytest.approx(15)
+        entry = next(c for c in catalog() if c["name"] == "test_block")
+        assert entry["project"] == "my_project"
+        assert next(c for c in catalog() if c["name"] == "frame_foot")["project"] == ""
+    finally:
+        monkeypatch.delenv("ALUCAD_PROJECTS")
+        userparts.load(force=True)
+    assert "test_block" not in REGISTRY

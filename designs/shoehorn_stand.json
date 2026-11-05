@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "units": "mm",
+  "up": "Z",
+  "name": "shoehorn_stand",
+  "parts": [
+    {
+      "id": "shoehorn_stand1",
+      "type": "shoehorn_stand",
+      "params": {
+        "hole_w": 41.0,
+        "mid_extra": 2.0,
+        "depth": 50.0,
+        "bottom": 100.0,
+        "top": 90.0,
+        "h": 60.0,
+        "r": 5.0,
+        "filament": "pla"
+      },
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ]
+}

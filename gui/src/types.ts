@@ -35,7 +35,8 @@ export interface ComponentDef {
   label: string;
   category: "frame" | "plate" | "print" | "kit" | string;
   description: string;
-  user: boolean; // parts/ フォルダの自作部品
+  user: boolean; // parts/ か projects/ の自作部品
+  project: string; // projects/<名前>.py の形ならプロジェクト名（パレットには出さない）。ほかは ""
   params: ParamDef[];
 }
 

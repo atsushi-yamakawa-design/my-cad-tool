@@ -80,8 +80,9 @@ class ComponentDef:
     category: str
     params: list[Param]
     build: Callable[..., Geometry]
-    source: str = ""  # parts/ フォルダの部品なら、そのファイルのパス
+    source: str = ""  # parts/ か projects/ の部品なら、そのファイルのパス
     description: str = ""
+    project: str = ""  # projects/<名前>.py の部品なら、そのプロジェクト名（パレットには出さない）
 
     def to_dict(self) -> dict:
         return {
@@ -90,12 +91,14 @@ class ComponentDef:
             "category": self.category,
             "description": self.description,
             "user": bool(self.source),
+            "project": self.project,
             "params": [p.to_dict() for p in self.params],
         }
 
 
 REGISTRY: dict[str, ComponentDef] = {}
-_current_source = ""  # parts/ を読み込み中のファイル（userparts が設定する）
+_current_source = ""  # parts/ か projects/ を読み込み中のファイル（userparts が設定する）
+_current_project = ""  # projects/ を読み込み中なら、そのプロジェクト名
 
 
 def component(name: str, *, label: str, category: str, params: list[Param]):
@@ -115,7 +118,7 @@ def component(name: str, *, label: str, category: str, params: list[Param]):
         if name in REGISTRY and REGISTRY[name].source != _current_source:
             raise ValueError(f"部品名 {name!r} はすでに使われています（{REGISTRY[name].source or 'alucad 本体'}）")
         doc = inspect.getdoc(fn) or ""
-        REGISTRY[name] = ComponentDef(name, label, category, params, fn, _current_source, doc)
+        REGISTRY[name] = ComponentDef(name, label, category, params, fn, _current_source, doc, _current_project)
         return fn
 
     return deco
