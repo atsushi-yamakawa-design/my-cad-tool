@@ -14,10 +14,16 @@ t = 3.0
 kerf = 0.20
 color = "burlywood"
 
+[materials.mdf5_5]
+label = "MDF 5.5mm"
+t = 5.5
+kerf = 0.25
+color = "#c9a26b"
+
 [materials.acrylic3]
 label = "アクリル 3mm"
 t = 3.0
-kerf = 0.15
+kerf = 0.20  # 2026-11-03 実測（幅 49.8 / 穴 10.2）。このカーフで finger_box の fit=0.0 がぴったり
 color = "#9fd3ef"
 
 [materials.acrylic5]
@@ -37,6 +43,6 @@ label = "PETG"
 color = "#5a6472"
 
 # プリンタの造形サイズ（幅, 奥行き, 高さ）。書いておくと加工前チェックで大きすぎる部品を警告する
-# [printer]
-# name = "Bambu Lab A1"
-# bed = [256, 256, 256]
+[printer]
+name = "Bambu Lab A1 mini"
+bed = [180, 180, 180]
