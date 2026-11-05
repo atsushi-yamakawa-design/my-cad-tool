@@ -11,3 +11,12 @@ GUI のパレット、デザインの JSON、書き出し（DXF / STL / STEP）�
 | ファイル | 部品 |
 |---|---|
 | `frame_foot.py` | フレームの足（3Dプリント）。お手本 |
+| `hex_nut.py` | 六角ナット（買う部品） |
+| `shaft.py` | 丸棒シャフト（買う部品） |
+| `misumi_bracket.py` | ミスミのブラケット（買う部品）。HBLFSN5（2020用）・HBLFSN6-5（3030用）・HBLFSN8（40mm用）。STEP は `vendor/<型番>.stp` に置く |
+
+## メーカーの STEP を使う部品（`vendor/`）
+
+ミスミなどからダウンロードした CAD データは `parts/vendor/` に置きます。メーカーのデータは再配布できないので、
+このフォルダは git に入りません（別の Mac では入れ直す）。型番を増やすときは、STEP を置いてから
+`misumi_bracket.py` の `MODELS` に向きと穴の位置を1行足します。
