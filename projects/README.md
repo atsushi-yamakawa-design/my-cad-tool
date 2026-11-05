@@ -9,3 +9,4 @@
 | ファイル | 中身 | デザイン |
 |---|---|---|
 | `shoehorn_stand.py` | 靴べら立て（3Dプリント） | `designs/shoehorn_stand.json` |
+| `sea.py` | プロト・sea：紙のループを2本のローラーで回して窓から見せる箱（キット `sea_box` ＋ローラー・紙・窓板・天板） | `designs/sea.json` |

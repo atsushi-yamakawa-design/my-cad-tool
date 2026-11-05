@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "units": "mm",
+  "up": "Z",
+  "name": "sea",
+  "parts": [
+    {
+      "id": "sea",
+      "type": "sea_box",
+      "params": {
+        "w": 290.0,
+        "d": 120.0,
+        "h": 200.0,
+        "profile": "2020",
+        "roller_dia": 20.0,
+        "paper_h": 130.0,
+        "margin": 10.0,
+        "plate_mat": "mdf3",
+        "window_mat": "mdf3",
+        "paper": true
+      },
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ]
+}
