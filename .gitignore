@@ -16,4 +16,4 @@ out/
 .DS_Store
 
 # メーカーの CAD データ（再配布できないので公開リポジトリに入れない）
-parts/vendor/
+parts/vendor

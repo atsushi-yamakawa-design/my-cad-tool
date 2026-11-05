@@ -18,5 +18,12 @@ GUI のパレット、デザインの JSON、書き出し（DXF / STL / STEP）�
 ## メーカーの STEP を使う部品（`vendor/`）
 
 ミスミなどからダウンロードした CAD データは `parts/vendor/` に置きます。メーカーのデータは再配布できないので、
-このフォルダは git に入りません（別の Mac では入れ直す）。型番を増やすときは、STEP を置いてから
+このフォルダは git に入りません。
+Google Drive に置いて `parts/vendor` をそこへのリンクにしておくと、どの Mac でも同じ STEP を使えます:
+
+```bash
+ln -s "$HOME/Library/CloudStorage/GoogleDrive-<アカウント>/マイドライブ/プロト・実験/alucad_vendor" parts/vendor
+```
+
+型番を増やすときは、STEP を置いてから
 `misumi_bracket.py` の `MODELS` に向きと穴の位置を1行足します。
