@@ -1,30 +1,118 @@
 // プロパティパネル。入力欄は catalog のパラメータ定義（型・単位・範囲・選択肢）から自動で作る
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { api } from "../api";
 import { componentDef, useStore } from "../store";
+import { findNode, isGroup, resolveNode, splitPath } from "../tree";
 import type { ParamDef, Params, PartSpec, Vec3 } from "../types";
 import { HolesEditor } from "./HolesEditor";
 import { NumberField } from "./NumberField";
 
 export function PropertyPanel() {
-  const part = useStore((s) => s.asm.parts.find((p) => p.id === s.selected));
-  if (!part) {
+  const selected = useStore((s) => s.selected);
+  const count = useStore((s) => s.multi.length + (s.selected ? 1 : 0));
+  const part = useStore((s) => (s.selected ? findNode(s.asm.parts, s.selected) : undefined));
+  if (!selected) {
     return (
       <aside className="panel props">
-        <p className="hint">部品をクリックすると、ここでパラメータを編集できます。</p>
+        <p className="hint">
+          部品をクリックすると、ここでパラメータを編集できます。グループの中は、もう一度クリックすると選べます。
+          Shift（⌘）クリックで複数選んで ⌘G でグループにまとめます。
+        </p>
       </aside>
     );
   }
-  return <PartProps key={part.id} part={part} />;
+  if (count > 1) return <MultiProps count={count} />;
+  if (!part) return <LockedProps key={selected} path={selected} />;
+  return <PartProps key={selected} path={selected} part={part} />;
 }
 
-function PartProps({ part }: { part: PartSpec }) {
+function MultiProps({ count }: { count: number }) {
+  const { group, removeSelected, select } = useStore.getState();
+  return (
+    <aside className="panel props">
+      <header className="props-head">
+        <div className="props-type">{count} 個の部品を選んでいます</div>
+      </header>
+      <p className="props-note">同じグループの中の部品なら、まとめて1つのグループにできます。</p>
+      <section className="props-actions">
+        <button onClick={group} title="⌘G">
+          グループにする
+        </button>
+        <button onClick={() => select(null)}>選択を外す</button>
+        <button className="danger" onClick={removeSelected}>
+          削除
+        </button>
+      </section>
+    </aside>
+  );
+}
+
+/** キットの中身。パラメータから作られるので見るだけ（表示/非表示は切り替えられる） */
+function LockedProps({ path }: { path: string }) {
+  const parts = useStore((s) => s.asm.parts);
+  const hidden = useStore((s) => s.hidden.includes(path));
+  const { toggleHidden, select } = useStore.getState();
+  const [part, setPart] = useState<PartSpec | null>(null);
+  useEffect(() => {
+    let alive = true;
+    resolveNode(parts, path).then((p) => alive && setPart(p ?? null));
+    return () => {
+      alive = false;
+    };
+  }, [parts, path]);
+
+  // いちばん内側の「編集できる部品」（キット本体）
+  const ids = splitPath(path);
+  let owner = ids[0];
+  for (let i = 1; i < ids.length && findNode(parts, ids.slice(0, i + 1).join("/")); i++) owner = ids.slice(0, i + 1).join("/");
+  const def = part ? componentDef(part.type) : undefined;
+
+  return (
+    <aside className="panel props">
+      <header className="props-head">
+        <div className="props-type">{def?.label ?? part?.type ?? "…"}</div>
+        <div className="props-id">{path}</div>
+      </header>
+      <p className="props-note">
+        キット <b>{owner}</b> の中身です。キットのパラメータから作られるので、ここでは動かせません。
+        中身を動かしたいときは、キットを選んで「グループに変換」します。
+      </p>
+      {part && (
+        <section>
+          <h3>パラメータ</h3>
+          <dl className="readonly-params">
+            {Object.entries(part.params).map(([k, v]) => (
+              <Fragment key={k}>
+                <dt title={k}>{def?.params.find((p) => p.name === k)?.label || k}</dt>
+                <dd>{typeof v === "object" ? JSON.stringify(v) : String(v)}</dd>
+              </Fragment>
+            ))}
+            <dt>位置</dt>
+            <dd>{part.pos.join(", ")}</dd>
+            <dt>回転</dt>
+            <dd>{part.rot.join(", ")}</dd>
+          </dl>
+        </section>
+      )}
+      <section className="props-actions">
+        <button onClick={() => select(owner)}>キットを選ぶ</button>
+        <button onClick={() => toggleHidden(path)}>{hidden ? "表示する" : "隠す"}</button>
+      </section>
+    </aside>
+  );
+}
+
+function PartProps({ path, part }: { path: string; part: PartSpec }) {
   const def = componentDef(part.type);
-  const { updatePart, renamePart, removePart, explode, notify, rotate90 } = useStore.getState();
+  const { updatePart, renamePart, removePart, toGroup, ungroup, registerComponent, notify, rotate90, toggleHidden } =
+    useStore.getState();
+  const hidden = useStore((s) => s.hidden.includes(path));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [id, setId] = useState(part.id);
   useEffect(() => setId(part.id), [part.id]);
+  const group = isGroup(part);
+  const kitLike = !group && (def?.category === "kit" || def?.category === "group");
 
   /** パラメータを1つ変える。サーバーでチェックして、通ったら確定 */
   const setParam = async (name: string, value: unknown) => {
@@ -32,7 +120,7 @@ function PartProps({ part }: { part: PartSpec }) {
     try {
       const res = await api.validate(part.type, params);
       setErrors((e) => ({ ...e, [name]: "" }));
-      updatePart(part.id, { params: res.params });
+      updatePart(path, { params: res.params });
     } catch (e) {
       setErrors((err) => ({ ...err, [name]: (e as Error).message }));
     }
@@ -41,37 +129,44 @@ function PartProps({ part }: { part: PartSpec }) {
   const setVec = (key: "pos" | "rot", i: number, v: number) => {
     const next = [...part[key]] as Vec3;
     next[i] = v;
-    updatePart(part.id, { [key]: next });
+    updatePart(path, { [key]: next });
   };
 
   return (
     <aside className="panel props">
       <header className="props-head">
-        <div className="props-type">{def?.label ?? part.type}</div>
+        <div className="props-type">{group ? `グループ（${(part.params.children as unknown[]).length} 個）` : (def?.label ?? part.type)}</div>
         <input
           className="props-id"
           value={id}
           onChange={(e) => setId(e.target.value)}
           onBlur={() => {
-            if (!renamePart(part.id, id.trim())) {
-              notify(`id "${id}" は使えません（重複か「/」を含んでいます）`, "error");
+            if (!renamePart(path, id.trim())) {
+              notify(`id "${id}" は使えません（同じグループの中で重複しているか「/」を含んでいます）`, "error");
               setId(part.id);
             }
           }}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-          title="部品の id（JSON での名前）"
+          title={`部品の id（JSON での名前）。パス: ${path}`}
         />
       </header>
 
-      <section>
-        <h3>パラメータ</h3>
-        {def?.params.map((p) => (
-          <ParamField key={p.name} def={p} value={part.params[p.name]} error={errors[p.name]} onChange={(v) => setParam(p.name, v)} />
-        ))}
-      </section>
+      {!group && !!def?.params.length && (
+        <section>
+          <h3>パラメータ</h3>
+          {def.params.map((p) => (
+            <ParamField key={p.name} def={p} value={part.params[p.name]} error={errors[p.name]} onChange={(v) => setParam(p.name, v)} />
+          ))}
+        </section>
+      )}
+      {group && (
+        <p className="props-note">
+          中身は 3D ビューでもう一度クリックするか、左の「構成」から選んで動かせます。位置・回転はグループの中での値です。
+        </p>
+      )}
 
       <section>
-        <h3>配置</h3>
+        <h3>配置{path.includes("/") ? "（グループの中）" : ""}</h3>
         <VecRow label="位置" unit="mm" value={part.pos} onChange={(i, v) => setVec("pos", i, v)} />
         <VecRow label="回転" unit="°" value={part.rot} onChange={(i, v) => setVec("rot", i, v)} />
         <div className="field">
@@ -92,12 +187,28 @@ function PartProps({ part }: { part: PartSpec }) {
       </section>
 
       <section className="props-actions">
-        {def?.category === "kit" && (
-          <button onClick={() => explode(part.id)} title="中身をばらばらの部品にする（元には戻せません。Undo は可）">
-            キットを分解
+        {kitLike && (
+          <button
+            onClick={() => toGroup(path)}
+            title="同じ中身のグループにする。中身を1つずつ動かせるようになるが、キットのパラメータでは作り直せなくなる（Undo は可）"
+          >
+            グループに変換
           </button>
         )}
-        <button className="danger" onClick={() => removePart(part.id)}>
+        {group && (
+          <>
+            <button onClick={() => ungroup(path)} title="中身を1つ上の階層に出す（⌘⇧G）">
+              グループを解除
+            </button>
+            <button onClick={() => registerComponent(path)} title="parts/<名前>.json に保存して、パレットから使える部品にする">
+              コンポーネントとして登録
+            </button>
+          </>
+        )}
+        <button onClick={() => toggleHidden(path)} title="画面で隠すだけ（書き出しには含まれます）。H キーでも同じ">
+          {hidden ? "表示する" : "隠す"}
+        </button>
+        <button className="danger" onClick={() => removePart(path)}>
           削除
         </button>
       </section>

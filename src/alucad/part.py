@@ -62,10 +62,11 @@ class Part:
         return self.params.get("mat")
 
     def expand(self) -> list[Part]:
-        """キットを中身の Part（ワールド座標）に展開する。キットでなければ [self]。"""
-        children = self.geometry.children
-        if not children:
+        """キット・グループを中身の Part（ワールド座標）に展開する。キットでなければ [self]。"""
+        g = self.geometry
+        if not g.is_kit:
             return [self]
+        children = g.children
         out = []
         for c in children:
             loc = self.location * c.location

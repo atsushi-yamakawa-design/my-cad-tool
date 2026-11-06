@@ -67,7 +67,7 @@ html, body, #root { margin: 0; height: 100%; }
   display: grid;
   height: 100vh;
   overflow: hidden;
-  grid-template-columns: clamp(140px, 13vw, 200px) minmax(0, 1fr) clamp(250px, 24vw, 320px);
+  grid-template-columns: clamp(170px, 16vw, 240px) minmax(0, 1fr) clamp(250px, 24vw, 320px);
   grid-template-rows: 44px minmax(0, 1fr) var(--bottom-h);
   grid-template-areas:
     "top top top"
@@ -299,3 +299,30 @@ textarea.bad { border-color: var(--danger); }
 .settings-pop h3 { margin-top: 0; }
 .settings-pop .seg { display: flex; }
 .settings-pop .seg button { flex: 1; }
+
+/* ---- 左パネルのタブと構成（部品の木） ---- */
+.left-tabs { position: sticky; top: 0; z-index: 1; margin: 0 -10px 6px; padding: 6px 6px 0; background: var(--panel); }
+.tree, .tree ul { list-style: none; margin: 0; padding: 0; }
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 2px 2px 4px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 12px;
+}
+.tree-row:hover { background: var(--hover); }
+.tree-row.on { background: var(--accent-soft); color: var(--accent); }
+.tree-row.hidden .tree-id, .tree-row.hidden .tree-type { opacity: 0.4; }
+.tree-row.locked .tree-id { font-style: italic; }
+.tree-row .caret { width: 14px; padding: 0; font-size: 10px; }
+.tree-id { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, Menlo, monospace; white-space: nowrap; }
+.tree-type { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
+.tree-row .eye { padding: 0 2px; font-size: 10px; opacity: 0.5; }
+.tree-row:hover .eye, .tree-row.hidden .eye { opacity: 1; }
+.props-note { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.readonly-params { font-size: 12px; display: grid; grid-template-columns: 88px 1fr; gap: 2px 8px; }
+.readonly-params dt { color: var(--muted); }
+.readonly-params dd { margin: 0; overflow-wrap: anywhere; font-family: ui-monospace, Menlo, monospace; }

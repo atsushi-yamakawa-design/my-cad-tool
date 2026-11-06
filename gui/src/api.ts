@@ -30,7 +30,9 @@ export const api = {
   validate: (type: string, params: Params) =>
     call<{ params: Params }>("POST", "/api/validate", { type, params }),
   mesh: (type: string, params: Params) => call<MeshData>("POST", "/api/mesh", { type, params }),
-  explode: (part: PartSpec) => call<{ parts: PartSpec[] }>("POST", "/api/explode", part),
+  toGroup: (part: PartSpec) => call<{ part: PartSpec }>("POST", "/api/to-group", part),
+  registerComponent: (name: string, label: string, children: PartSpec[]) =>
+    call<{ saved: string; name: string }>("POST", "/api/components", { name, label, children }),
   check: (asm: AssemblySpec) => call<{ issues: Issue[] }>("POST", "/api/check", asm),
   bom: (asm: AssemblySpec) => call<Bom & { markdown: string }>("POST", "/api/bom", asm),
   designs: () => call<{ designs: string[]; dir: string }>("GET", "/api/designs"),

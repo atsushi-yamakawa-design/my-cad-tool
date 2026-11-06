@@ -4,6 +4,21 @@ import { create } from "zustand";
 import { api, ApiError, clearMeshCache } from "./api";
 import { merge, sameAssembly, takeTheirs } from "./merge";
 import { cleanMm, rotateWorld } from "./transform";
+import {
+  findNode,
+  GROUP,
+  groupChildren,
+  isGroup,
+  joinPath,
+  lastId,
+  mapChildren,
+  mapNode,
+  parentPath,
+  siblingsOf,
+  splitPath,
+  ungroupChildren,
+  uniqueId,
+} from "./tree";
 import type { AssemblySpec, Catalog, Issue, PartSpec, Vec3 } from "./types";
 
 const HISTORY_LIMIT = 200;
@@ -33,11 +48,15 @@ function savePref(key: string, value: unknown) {
   }
 }
 
-function uniqueId(base: string, taken: Set<string>): string {
-  if (!taken.has(base)) return base;
-  let n = 2;
-  while (taken.has(`${base}${n}`)) n++;
-  return `${base}${n}`;
+/** h が from のどれか（かその中）なら、to で付け替えたパスにする */
+function movePath(h: string, from: string[], to: (p: string) => string): string {
+  const hit = from.find((p) => h === p || h.startsWith(p + "/"));
+  return hit ? to(hit) + h.slice(hit.length) : h;
+}
+
+/** 読み込み直しや Undo のあとも、同じ部品（の一番上）がまだあれば選んだままにする */
+function keepSelection(asm: AssemblySpec, selected: string | null): string | null {
+  return selected && asm.parts.some((p) => p.id === splitPath(selected)[0]) ? selected : null;
 }
 
 function nextId(type: string, parts: PartSpec[]): string {
@@ -52,7 +71,9 @@ interface State {
   designs: string[];
   name: string; // デザイン名（designs/<name>.json）
   asm: AssemblySpec;
-  selected: string | null;
+  selected: string | null; // 選んでいる部品のパス（"rollers/roller_l" のように id を「/」でつなぐ）
+  multi: string[]; // Shift/⌘ で一緒に選んだ部品のパス（selected は含まない）
+  hidden: string[]; // 画面で隠している部品のパス（書き出しには関係しない。デザインごとにブラウザに覚える）
   dirty: boolean;
   past: AssemblySpec[];
   future: AssemblySpec[];
@@ -81,11 +102,17 @@ interface State {
 
   commit: (asm: AssemblySpec) => void;
   addPart: (type: string) => Promise<void>;
-  updatePart: (id: string, patch: Partial<PartSpec>) => void;
-  renamePart: (id: string, newId: string) => boolean;
-  removePart: (id: string) => void;
-  explode: (id: string) => Promise<void>;
-  select: (id: string | null) => void;
+  updatePart: (path: string, patch: Partial<PartSpec>) => void;
+  renamePart: (path: string, newId: string) => boolean;
+  removePart: (path: string) => void;
+  removeSelected: () => void;
+  toGroup: (path: string) => Promise<void>;
+  group: () => void;
+  ungroup: (path: string) => void;
+  registerComponent: (path: string) => Promise<void>;
+  select: (path: string | null, add?: boolean) => void;
+  toggleHidden: (path: string) => void;
+  setHiddenPaths: (hidden: string[]) => void;
   setTool: (tool: Tool) => void;
   setSnap: (snap: number) => void;
   nudge: (axis: 0 | 1 | 2, steps: number) => void;
@@ -115,6 +142,8 @@ export const useStore = create<State>((set, get) => ({
   name: "untitled",
   asm: emptyAssembly(),
   selected: null,
+  multi: [],
+  hidden: [],
   dirty: false,
   past: [],
   future: [],
@@ -140,7 +169,8 @@ export const useStore = create<State>((set, get) => ({
   openDesign: async (name) => {
     try {
       const { assembly, stamp } = await api.load(name);
-      set({ asm: assembly, base: assembly, name, stamp, selected: null, dirty: false, past: [], future: [], conflict: null });
+      set({ asm: assembly, base: assembly, name, stamp, selected: null, multi: [], dirty: false, past: [], future: [], conflict: null });
+      set({ hidden: loadPref<string[]>(`hidden.${name}`, []) });
       savePref("lastDesign", name);
     } catch (e) {
       get().notify((e as Error).message, "error");
@@ -154,6 +184,8 @@ export const useStore = create<State>((set, get) => ({
       stamp: null,
       base: null,
       selected: null,
+      multi: [],
+      hidden: [],
       dirty: false,
       past: [],
       future: [],
@@ -196,7 +228,7 @@ export const useStore = create<State>((set, get) => ({
       conflict: null,
       past: [...get().past, get().asm].slice(-HISTORY_LIMIT), // 読み込み直しも Undo で戻せる
       future: [],
-      selected: assembly.parts.some((p) => p.id === selected) ? selected : null,
+      selected: keepSelection(assembly, selected),
     });
   },
 
@@ -214,7 +246,7 @@ export const useStore = create<State>((set, get) => ({
       conflict: conflicts.length ? { ids: conflicts, theirs } : null,
       past: sameAssembly(merged, asm) ? past : [...past, asm].slice(-HISTORY_LIMIT), // マージも Undo で戻せる
       future: [],
-      selected: merged.parts.some((p) => p.id === selected) ? selected : null,
+      selected: keepSelection(merged, selected),
     });
     if (!conflicts.length) {
       get().notify(`${name}.json の外部の変更（${taken}個の部品）を、こちらの未保存の変更と合わせました`);
@@ -236,7 +268,7 @@ export const useStore = create<State>((set, get) => ({
       future: [],
       conflict: null,
       dirty: !sameAssembly(next, conflict.theirs),
-      selected: next.parts.some((p) => p.id === selected) ? selected : null,
+      selected: keepSelection(next, selected),
     });
   },
 
@@ -299,53 +331,160 @@ export const useStore = create<State>((set, get) => ({
       const id = nextId(type, asm.parts);
       const part: PartSpec = { id, type, params, pos: [0, 0, 0], rot: [0, 0, 0] };
       get().commit({ ...asm, parts: [...asm.parts, part] });
-      set({ selected: id });
+      set({ selected: id, multi: [] });
     } catch (e) {
       get().notify((e as Error).message, "error");
     }
   },
 
-  updatePart: (id, patch) => {
+  updatePart: (path, patch) => {
     const { asm } = get();
-    get().commit({ ...asm, parts: asm.parts.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
+    if (!findNode(asm.parts, path)) return; // キットの中身は変えられない
+    get().commit({ ...asm, parts: mapNode(asm.parts, path, (p) => ({ ...p, ...patch })) });
   },
 
-  renamePart: (id, newId) => {
-    const { asm, selected } = get();
+  renamePart: (path, newId) => {
+    const { asm, selected, hidden } = get();
+    const id = lastId(path);
     if (!newId || newId === id) return true;
-    if (newId.includes("/") || asm.parts.some((p) => p.id === newId)) return false;
-    get().commit({ ...asm, parts: asm.parts.map((p) => (p.id === id ? { ...p, id: newId } : p)) });
-    if (selected === id) set({ selected: newId });
+    const sibs = siblingsOf(asm.parts, path);
+    if (!sibs || newId.includes("/") || sibs.some((p) => p.id === newId)) return false;
+    get().commit({ ...asm, parts: mapNode(asm.parts, path, (p) => ({ ...p, id: newId })) });
+    const moved = joinPath(parentPath(path), newId);
+    const re = (q: string) => (q === path ? moved : q.startsWith(path + "/") ? moved + q.slice(path.length) : q);
+    if (selected) set({ selected: re(selected) });
+    get().setHiddenPaths(hidden.map(re));
     return true;
   },
 
-  removePart: (id) => {
+  removePart: (path) => {
     const { asm } = get();
-    get().commit({ ...asm, parts: asm.parts.filter((p) => p.id !== id) });
-    set({ selected: null });
+    if (!findNode(asm.parts, path)) return;
+    get().commit({ ...asm, parts: mapNode(asm.parts, path, () => null) });
+    set({ selected: null, multi: [] });
   },
 
-  explode: async (id) => {
+  /** 選んでいる部品を全部消す（キットの中身は消せないので飛ばす） */
+  removeSelected: () => {
+    const { asm, selected, multi } = get();
+    const paths = [...multi, ...(selected ? [selected] : [])].filter((p) => findNode(asm.parts, p));
+    if (!paths.length) return;
+    let parts = asm.parts;
+    for (const p of paths) parts = mapNode(parts, p, () => null);
+    get().commit({ ...asm, parts });
+    set({ selected: null, multi: [] });
+  },
+
+  /** キット（か登録したグループ部品）を、同じ形のグループにする。中身を動かせるようになる */
+  toGroup: async (path) => {
     const { asm } = get();
-    const kit = asm.parts.find((p) => p.id === id);
-    if (!kit) return;
+    const node = findNode(asm.parts, path);
+    if (!node) return;
     try {
-      const { parts } = await api.explode(kit);
-      const taken = new Set(asm.parts.filter((p) => p.id !== id).map((p) => p.id));
-      const fresh = parts.map((p) => {
-        const pid = uniqueId(p.id, taken);
-        taken.add(pid);
-        return { ...p, id: pid };
-      });
-      get().commit({ ...asm, parts: [...asm.parts.filter((p) => p.id !== id), ...fresh] });
-      set({ selected: null });
-      get().notify(`${id} を ${fresh.length} 個の部品に分解しました`);
+      const { part } = await api.toGroup(node);
+      get().commit({ ...get().asm, parts: mapNode(get().asm.parts, path, () => part) });
+      get().notify(`${node.id} をグループにしました（中身を選んで動かせます）`);
     } catch (e) {
       get().notify((e as Error).message, "error");
     }
   },
 
-  select: (id) => set({ selected: id }),
+  /** 選んでいる部品（同じグループの中のもの）を新しいグループにまとめる */
+  group: () => {
+    const { asm, selected, multi } = get();
+    const paths = [...multi, ...(selected ? [selected] : [])];
+    if (!paths.length) return;
+    const parent = parentPath(paths[0]);
+    if (paths.some((p) => parentPath(p) !== parent || !findNode(asm.parts, p))) {
+      get().notify("同じグループの中の部品だけをまとめられます（キットの中身はまとめられません）", "error");
+      return;
+    }
+    const ids = new Set(paths.map(lastId));
+    let newPath = "";
+    const parts = mapChildren(asm.parts, parent, (kids) => {
+      const picked = kids.filter((k) => ids.has(k.id));
+      const rest = kids.filter((k) => !ids.has(k.id));
+      const gid = uniqueId("group1", new Set(rest.map((k) => k.id)));
+      newPath = joinPath(parent, gid);
+      const g: PartSpec = { id: gid, type: GROUP, params: { children: picked }, pos: [0, 0, 0], rot: [0, 0, 0] };
+      const at = kids.findIndex((k) => ids.has(k.id));
+      const out = kids.filter((k, i) => !ids.has(k.id) || i === at);
+      return out.map((k) => (ids.has(k.id) ? g : k));
+    });
+    get().commit({ ...asm, parts });
+    set({ selected: newPath, multi: [] });
+    // 隠していた部品は、グループの中に入っても隠したまま
+    get().setHiddenPaths(get().hidden.map((h) => movePath(h, paths, (p) => joinPath(newPath, lastId(p)))));
+  },
+
+  /** グループを解いて、中身を1つ上の階層に出す（位置・回転はそのまま見えるように直す） */
+  ungroup: (path) => {
+    const { asm } = get();
+    const g = findNode(asm.parts, path);
+    if (!g || !isGroup(g)) return;
+    const parent = parentPath(path);
+    const taken = new Set((siblingsOf(asm.parts, path) ?? []).filter((k) => k.id !== g.id).map((k) => k.id));
+    const renamed = new Map<string, string>();
+    const kids = ungroupChildren(g).map((k) => {
+      const id = uniqueId(k.id, taken);
+      taken.add(id);
+      renamed.set(joinPath(path, k.id), joinPath(parent, id));
+      return { ...k, id };
+    });
+    get().commit({ ...asm, parts: mapNode(asm.parts, path, () => kids) });
+    get().setHiddenPaths(
+      get().hidden.filter((h) => h !== path).map((h) => movePath(h, [...renamed.keys()], (p) => renamed.get(p)!)),
+    );
+    const paths = kids.map((k) => joinPath(parent, k.id)); // 出した中身をまとめて選んでおく
+    set({ selected: paths[0] ?? null, multi: paths.slice(1) });
+  },
+
+  /** グループを parts/<名前>.json に書いて、パレットから使える部品にする */
+  registerComponent: async (path) => {
+    const node = findNode(get().asm.parts, path);
+    const kids = node && groupChildren(node);
+    if (!node || !kids?.length) {
+      get().notify("中身のあるグループを選んでください", "error");
+      return;
+    }
+    const name = window.prompt("部品名（英数字・_・-。parts/<部品名>.json になります）", node.id)?.trim();
+    if (!name) return;
+    if (!NAME_RE.test(name)) {
+      get().notify("部品名に使えるのは英数字・_・- だけです", "error");
+      return;
+    }
+    const label = window.prompt("パレットに出す名前（日本語でよい）", name)?.trim() || name;
+    try {
+      await api.registerComponent(name, label, kids);
+      clearMeshCache();
+      set({ catalog: await api.catalog() });
+      get().notify(`parts/${name}.json に登録しました。パレットの「グループ」から使えます`);
+    } catch (e) {
+      get().notify((e as Error).message, "error");
+    }
+  },
+
+  /** 選ぶ。add なら Shift/⌘ クリックのように、選んでいるものに足す（もう選んでいれば外す） */
+  select: (path, add = false) => {
+    const { selected, multi } = get();
+    if (!add || !path || !selected) return set({ selected: path, multi: [] });
+    if (path === selected) {
+      const [next, ...rest] = multi;
+      return set({ selected: next ?? null, multi: rest });
+    }
+    if (multi.includes(path)) return set({ multi: multi.filter((p) => p !== path) });
+    set({ selected: path, multi: [...multi, selected] });
+  },
+
+  toggleHidden: (path) => {
+    const { hidden } = get();
+    get().setHiddenPaths(hidden.includes(path) ? hidden.filter((p) => p !== path) : [...hidden, path]);
+  },
+
+  setHiddenPaths: (hidden) => {
+    savePref(`hidden.${get().name}`, hidden);
+    set({ hidden });
+  },
 
   setTool: (tool) => set({ tool }),
 
@@ -357,19 +496,19 @@ export const useStore = create<State>((set, get) => ({
   /** 選んでいる部品をスナップ間隔ぶん動かす（スナップ無しなら 1mm） */
   nudge: (axis, steps) => {
     const { selected, asm, snap } = get();
-    const part = asm.parts.find((p) => p.id === selected);
-    if (!part) return;
+    const part = selected ? findNode(asm.parts, selected) : undefined;
+    if (!part || !selected) return;
     const pos = [...part.pos] as Vec3;
     pos[axis] = cleanMm(pos[axis] + steps * (snap || 1));
-    get().updatePart(part.id, { pos });
+    get().updatePart(selected, { pos });
   },
 
   /** 選んでいる部品を、ワールドの軸まわりに 90° 回す */
   rotate90: (axis, sign = 1) => {
     const { selected, asm } = get();
-    const part = asm.parts.find((p) => p.id === selected);
-    if (!part) return;
-    get().updatePart(part.id, { rot: rotateWorld(part.rot, axis, 90 * sign) });
+    const part = selected ? findNode(asm.parts, selected) : undefined;
+    if (!part || !selected) return;
+    get().updatePart(selected, { rot: rotateWorld(part.rot, axis, 90 * sign) });
   },
 
   undo: () => {
@@ -381,7 +520,7 @@ export const useStore = create<State>((set, get) => ({
       past: past.slice(0, -1),
       future: [asm, ...future],
       dirty: true,
-      selected: prev.parts.some((p) => p.id === selected) ? selected : null,
+      selected: keepSelection(prev, selected),
     });
   },
 
@@ -394,7 +533,7 @@ export const useStore = create<State>((set, get) => ({
       past: [...past, asm],
       future: future.slice(1),
       dirty: true,
-      selected: next.parts.some((p) => p.id === selected) ? selected : null,
+      selected: keepSelection(next, selected),
     });
   },
 

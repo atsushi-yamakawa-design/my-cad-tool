@@ -49,12 +49,49 @@ def _load(client, name):
     return client.get(f"/api/designs/{name}").json()["assembly"]
 
 
-def test_explode(client):
+def test_kit_to_group_keeps_the_shape(client):
     stand = _load(client, "stand")["parts"][0]
     stand["pos"] = [100, 0, 0]
-    parts = client.post("/api/explode", json=stand).json()["parts"]
-    top = next(p for p in parts if p["id"] == "stand_top")
-    assert top["pos"] == [100, 0, 150]
+    g = client.post("/api/to-group", json=stand).json()["part"]
+    assert g["type"] == "group" and g["id"] == "stand" and g["pos"] == [100, 0, 0]
+    ids = [c["id"] for c in g["params"]["children"]]
+    assert len(ids) == 17 and len(set(ids)) == 17 and all(ids)
+    top = next(c for c in g["params"]["children"] if c["id"] == "top")
+    assert top["pos"] == [0, 0, 150]  # グループの中での位置
+    # グループのままでも部品表は同じ
+    kit_bom = client.post("/api/bom", json={"parts": [stand]}).json()
+    group_bom = client.post("/api/bom", json={"parts": [g]}).json()
+    assert kit_bom["frames"] == group_bom["frames"] and kit_bom["bolts"] == group_bom["bolts"]
+    assert client.post("/api/to-group", json=g).status_code == 400
+
+
+@pytest.fixture
+def parts_dir(tmp_path, monkeypatch):
+    from alucad import userparts
+
+    d = tmp_path / "parts"
+    d.mkdir()
+    monkeypatch.setenv("ALUCAD_PARTS", str(d))
+    yield d
+    monkeypatch.delenv("ALUCAD_PARTS")
+    userparts.load(force=True)  # 本物の parts/ に戻す
+
+
+def test_register_group_as_component(client, parts_dir):
+    children = [
+        {"id": "a", "type": "frame", "params": {"length": 100}, "pos": [0, 0, 0], "rot": [0, 0, 0]},
+        {"id": "b", "type": "frame", "params": {"length": 100}, "pos": [40, 0, 0], "rot": [0, 0, 0]},
+    ]
+    res = client.post("/api/components", json={"name": "two_frames", "label": "フレーム2本", "children": children})
+    assert res.status_code == 200 and (parts_dir / "two_frames.json").exists()
+    comp = next(c for c in client.get("/api/catalog").json()["components"] if c["name"] == "two_frames")
+    assert comp["category"] == "group" and comp["label"] == "フレーム2本" and comp["params"] == []
+    mesh = client.post("/api/mesh", json={"type": "two_frames", "params": {}}).json()
+    assert mesh["kit"] is True and [c["id"] for c in mesh["children"]] == ["a", "b"]
+    again = client.post("/api/components", json={"name": "two_frames", "children": children})
+    assert again.status_code == 409
+    bad = client.post("/api/components", json={"name": "dup", "children": [children[0], children[0]]})
+    assert bad.status_code == 400 and "重複" in bad.json()["detail"]
 
 
 def test_designs_roundtrip_and_build(client, tmp_path):

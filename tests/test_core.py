@@ -122,8 +122,44 @@ def test_catalog_has_metadata():
 
 
 def test_registry_defaults_build():
-    """全コンポーネントがデフォルト値だけで形状を作れる。"""
-    from alucad import make
+    """全コンポーネントがデフォルト値だけで形状を作れる（空のグループは除く）。"""
+    from alucad import GROUP, make
 
     for name in REGISTRY:
-        assert make(name).solid().volume > 0
+        if name != GROUP:
+            assert make(name).solid().volume > 0
+
+
+def test_group_roundtrip_and_expand():
+    from alucad import Assembly, Part
+
+    d = {
+        "id": "g", "type": "group", "pos": [100, 0, 0], "rot": [0, 0, 90],
+        "params": {"children": [
+            {"id": "a", "type": "frame", "params": {"length": 100}, "pos": [10, 0, 0], "rot": [0, 0, 0]},
+            {"id": "inner", "type": "group", "params": {"children": [
+                {"id": "b", "type": "frame", "params": {"length": 50}, "pos": [0, 0, 0], "rot": [0, 0, 0]},
+            ]}, "pos": [0, 0, 20], "rot": [0, 0, 0]},
+        ]},
+    }
+    g = Part.from_dict(d)
+    assert g.to_dict() == {**d, "params": g.params}  # JSON とそのまま往復する
+    asm = Assembly("x", [g])
+    names = {p.name: p for p in asm.expanded()}
+    assert set(names) == {"g/a", "g/inner/b"}
+    a = names["g/a"].position
+    assert (round(a[0], 6), round(a[1], 6)) == (100, 10)  # グループの回転（Z 90°）で +X が +Y に
+    assert names["g/inner/b"].position[2] == 20
+    assert Part.from_dict({"type": "group", "params": {}}).expand() == []  # 空のグループは部品として数えない
+
+
+def test_group_rejects_bad_children():
+    import pytest
+
+    from alucad import make
+
+    frame = {"type": "frame", "params": {}, "pos": [0, 0, 0], "rot": [0, 0, 0]}
+    with pytest.raises(ValueError, match="id"):
+        make("group", children=[frame])
+    with pytest.raises(ValueError, match="重複"):
+        make("group", children=[{**frame, "id": "a"}, {**frame, "id": "a"}])

@@ -62,6 +62,7 @@ class Geometry:
     layers: dict[str, Sketch | Shape] = field(default_factory=dict)
     anchors: list[Anchor] = field(default_factory=list)
     children: list = field(default_factory=list)  # キット（複合コンポーネント）の中身の Part
+    is_kit: bool = False  # キット・グループ（中身が空でも、それ自体は部品として数えない）
 
     @classmethod
     def kit(cls, children: list, anchors: list[Anchor] | None = None) -> Geometry:
@@ -70,6 +71,7 @@ class Geometry:
             solid=Compound([c.solid() for c in children]),
             anchors=anchors or [],
             children=children,
+            is_kit=True,
         )
 
 

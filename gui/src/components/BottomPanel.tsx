@@ -56,7 +56,7 @@ export function BottomPanel({ collapsed, onToggle }: { collapsed: boolean; onTog
           (issues.length ? (
             <ul className="issues">
               {issues.map((i, k) => (
-                <li key={k} className={i.level} onClick={() => select(i.part.split("/")[0])}>
+                <li key={k} className={i.level} onClick={() => select(i.part)}>
                   <b>{i.level === "error" ? "エラー" : "注意"}</b> {i.part}: {i.message}
                 </li>
               ))}

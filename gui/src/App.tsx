@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { BottomPanel } from "./components/BottomPanel";
-import { Palette } from "./components/Palette";
+import { LeftPanel } from "./components/Palette";
 import { PropertyPanel } from "./components/PropertyPanel";
 import { Toolbar } from "./components/Toolbar";
 import { Viewport } from "./components/Viewport";
@@ -54,13 +54,21 @@ export function App() {
         e.preventDefault();
         if (e.shiftKey) s.redo();
         else s.undo();
+      } else if (mod && e.key.toLowerCase() === "g") {
+        // ⌘G: 選んでいる部品をグループにまとめる。⌘⇧G: グループを解く
+        e.preventDefault();
+        if (e.shiftKey) {
+          if (s.selected) s.ungroup(s.selected);
+        } else s.group();
       } else if ((e.key === "Delete" || e.key === "Backspace") && s.selected) {
         e.preventDefault();
-        s.removePart(s.selected);
+        s.removeSelected();
       } else if (e.key === "Escape") {
         s.select(null);
       } else if (mod || e.altKey) {
         return;
+      } else if (e.key.toLowerCase() === "h" && s.selected) {
+        for (const p of [s.selected, ...s.multi]) s.toggleHidden(p);
       } else if (e.key.toLowerCase() === "w") {
         s.setTool("move");
       } else if (e.key.toLowerCase() === "e") {
@@ -95,7 +103,7 @@ export function App() {
   return (
     <div className={`app ${bottomCollapsed ? "bottom-collapsed" : ""}`}>
       <Toolbar />
-      <Palette />
+      <LeftPanel />
       <main className="viewport">{ready && <Viewport />}</main>
       <PropertyPanel />
       <BottomPanel collapsed={bottomCollapsed} onToggle={setBottomCollapsed} />

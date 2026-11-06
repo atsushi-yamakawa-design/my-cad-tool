@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import re
 import warnings
 from pathlib import Path
@@ -19,7 +20,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .. import Assembly, Part, bom, catalog, check, make, materials, userparts
+from .. import GROUP, Assembly, Part, bom, catalog, check, make, materials, registry, userparts
 from ..cli import build as build_files
 from ..export import part_color
 
@@ -34,6 +35,12 @@ class PartSpec(BaseModel):
     pos: list[float] = [0, 0, 0]
     rot: list[float] = [0, 0, 0]
     id: str = ""
+
+
+class ComponentSpec(BaseModel):
+    name: str
+    label: str = ""
+    children: list[dict]
 
 
 class AssemblySpec(BaseModel):
@@ -88,20 +95,41 @@ def create_app(designs_dir: Path | None = None) -> FastAPI:
 
     @app.post("/api/mesh")
     def mesh(spec: PartSpec):
-        """部品1つの三角形メッシュ（ローカル座標・mm・Z上）。キットは中身を返す。"""
+        """部品1つの三角形メッシュ（ローカル座標・mm・Z上）。キット・グループは中身を返す。"""
         p = _make(spec)
-        children = p.geometry.children
-        if children:
-            return {"kit": True, "children": [_part_dict(c) for c in children]}
+        if p.geometry.is_kit:
+            return {"kit": True, "children": _child_dicts(p)}
         return {"kit": False, "category": p.category, "mat": p.mat, "color": part_color(p), **_tessellate(p)}
 
-    @app.post("/api/explode")
-    def explode(spec: PartSpec):
-        """キットをばらばらの部品（ワールド座標）に分解する。"""
-        p = _place(_make(spec), spec)
-        if not p.geometry.children:
+    @app.post("/api/to-group")
+    def to_group(spec: PartSpec):
+        """キット（や登録したグループ部品）を、同じ位置・中身のグループに変える。中身は自由に動かせるようになる。"""
+        p = _make(spec)
+        if not p.geometry.is_kit or p.type == GROUP:
             raise HTTPException(400, "キットではありません")
-        return {"parts": [_part_dict(c, strip=spec.id) for c in p.expand()]}
+        return {"part": {"id": spec.id, "type": GROUP, "params": {"children": _child_dicts(p)}, "pos": spec.pos, "rot": spec.rot}}
+
+    @app.post("/api/components")
+    def register_component(spec: ComponentSpec):
+        """グループを parts/<名前>.json に書いて、パレットの部品にする。"""
+        if not NAME_RE.match(spec.name):
+            raise HTTPException(400, "部品名に使えるのは英数字・_・- だけです")
+        folder = userparts.parts_dir()
+        if spec.name in registry.REGISTRY or any((folder / f"{spec.name}{x}").exists() for x in (".py", ".json")):
+            raise HTTPException(409, f"部品名 {spec.name!r} はすでに使われています")
+        if not spec.children:
+            raise HTTPException(400, "中身のないグループは登録できません")
+        try:
+            make(GROUP, children=spec.children)  # 中身がちゃんと作れるか先に確かめる
+        except (ValueError, TypeError, KeyError) as e:
+            raise HTTPException(400, _message(e)) from e
+        path = folder / f"{spec.name}.json"
+        data = {"label": spec.label or spec.name, "children": spec.children}
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        userparts.load()
+        if spec.name not in registry.REGISTRY:
+            raise HTTPException(400, userparts.errors().get(f"parts/{path.name}", "登録できませんでした"))
+        return {"saved": str(path), "name": spec.name}
 
     # ---- アセンブリ全体 ----
     @app.post("/api/check")
@@ -172,10 +200,6 @@ def _make(spec: PartSpec) -> Part:
         raise HTTPException(400, _message(e)) from e
 
 
-def _place(p: Part, spec: PartSpec) -> Part:
-    return p.at(*spec.pos).rot(*spec.rot).named(spec.id)
-
-
 def _assembly(spec: AssemblySpec) -> Assembly:
     parts = []
     for s in spec.parts:
@@ -186,11 +210,19 @@ def _assembly(spec: AssemblySpec) -> Assembly:
     return Assembly(spec.name, parts)
 
 
-def _part_dict(p: Part, strip: str = "") -> dict:
-    d = p.to_dict()
-    if strip and d.get("id", "").startswith(strip + "/"):
-        d["id"] = d["id"].replace("/", "_")  # 分解した部品の id は "stand_top" のようにする
-    return d
+def _child_dicts(p: Part) -> list[dict]:
+    """キットの中身（キットの中での位置・回転）。id がない・重複している中身には "frame2" のような id を付ける。"""
+    out, taken = [], set()
+    for c in p.geometry.children:
+        cid = c.name.replace("/", "_") if c.name else c.type
+        if cid in taken or not c.name:
+            n = 1
+            while f"{cid}{n}" in taken:
+                n += 1
+            cid = f"{cid}{n}"
+        taken.add(cid)
+        out.append({**c.to_dict(), "id": cid})
+    return out
 
 
 def _stamp(path: Path) -> str | None:

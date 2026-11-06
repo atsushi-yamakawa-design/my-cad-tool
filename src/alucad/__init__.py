@@ -7,6 +7,7 @@ from .bracket import corner_bracket, l_bracket
 from .check import Issue, check
 from .export import cut_layers, export_dxf, export_glb, export_prints, export_sheets, export_step
 from .frame import frame
+from .group import GROUP
 from .holes import HOLES, hole_dia, hole_grid
 from .joint import box_face, finger_box
 from .kits import frame_stand
@@ -29,6 +30,7 @@ __all__ = [
     "Assembly",
     "BED",
     "FILAMENTS",
+    "GROUP",
     "HOLES",
     "Issue",
     "MATERIALS",
