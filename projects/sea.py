@@ -18,7 +18,7 @@ from alucad import flat, frame, materials, profiles
 from alucad.mounting import frame_holes
 from alucad.part import make
 from alucad.printed import FILAMENT
-from alucad.registry import Anchor, Geometry, Param, component
+from alucad.registry import REGISTRY, Anchor, Geometry, Param, component
 
 CENTER_Z0 = (Align.CENTER, Align.CENTER, Align.MIN)
 PAPER_T = 0.3  # 紙の厚み（表示用）
@@ -26,6 +26,10 @@ AXLE = 8.0  # ローラーの軸の直径
 LIP_FLAT = 1.0  # ローラーの縁（つば）のまっすぐな部分の厚み
 PAPER_GAP = 1.0  # 紙の端と縁のすき間（片側）
 TAP_DRILL = {"M3": 2.5, "M4": 3.3}  # 止めネジの下穴（あとでタップを立てる）
+# 脚と横桟の角に付けるミスミのブラケット（フレーム断面ごとの型番）。STEP が parts/vendor/ にあるときだけ使える
+BRACKET = {"2020": "HBLFSN5", "3030": "HBLFSN6-5"}
+_MB = REGISTRY.get("misumi_bracket")
+BRACKET_MODELS = tuple(_MB.params[0].choices) if _MB else ()
 
 
 @component(
@@ -78,7 +82,7 @@ def build_roller(dia, length, bore, clearance, lip, hub_dia, hub_len, set_screw,
 @component(
     "sea_paper",
     label="sea 紙のループ",
-    category="hardware",
+    category="paper",  # 表示用。買う部品ではないので部品表には出さない
     params=[
         Param("span", float, 214.0, min=10, label="ローラーの中心間の距離"),
         Param("roller_dia", float, 20.0, min=5, label="ローラーの直径"),
@@ -156,9 +160,10 @@ def build_plate(w, d, r, span, axle_hole, mat, holes) -> Geometry:
         Param("plate_mat", str, "mdf3", unit="", choices=flat.MAT.choices, label="天板・底板の材料"),
         Param("window_mat", str, "mdf3", unit="", choices=flat.MAT.choices, label="窓板の材料"),
         Param("paper", bool, True, unit="", label="紙を表示する"),
+        Param("brackets", bool, bool(BRACKET_MODELS), unit="", label="側面の下の角にブラケット"),
     ],
 )
-def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_mat, paper) -> Geometry:
+def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_mat, paper, brackets) -> Geometry:
     """原点は底面（フレームの下面）の中心。-Y が前（窓）。"""
     s = profiles.get(profile).size
     r = roller_dia / 2
@@ -206,5 +211,17 @@ def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_m
     # 留めるのは4つ角だけ（脚と上下の横桟が交わるところ。Tナットは脚の前の溝に入れる）
     win = win.with_params(holes=[[sx * cx, sz * (h / 2 - s / 2), "M5"] for sx in (-1, 1) for sz in (-1, 1)])
     parts.append(win)
+
+    # 前後の揺れ止め：左右の側面で、脚の下端と下の横桟の内側の角にブラケットを1個ずつ（計4個）。
+    # 左右の揺れは前の窓板、上の角は天板が押さえるので、これが最低限
+    if brackets:
+        model = BRACKET.get(profile)
+        if model not in BRACKET_MODELS:
+            raise ValueError(f"sea_box: ブラケット {model} の STEP がありません（parts/vendor/ に置くか、ブラケットを外してください）")
+        for sx, xt in ((-1, "l"), (1, "r")):
+            for sy, yt in ((-1, "f"), (1, "b")):
+                # ブラケットの床側の腕（+X）を脚から離れる向き（-sy）へ、壁側（+Z）を上へ
+                b = make("misumi_bracket", model=model).at(sx * cx, sy * (d / 2 - s), s).rot(0, 0, -sy * 90)
+                parts.append(b.named(f"bracket_{yt}{xt}"))
 
     return Geometry.kit(parts, anchors=[Anchor("top", (0, 0, h + tp), (0, 0, 1), "face")])

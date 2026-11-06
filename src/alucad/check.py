@@ -11,13 +11,14 @@ from itertools import combinations
 
 from build123d import Kind, offset
 
-from . import materials
+from . import materials, profiles
 from .assembly import Assembly
 from .export import _parts
 from .part import Part
 
 MIN_WIDTH = 1.0  # これより細い部分は警告（mm）
 OVERLAP_TOL = 1e-3  # これより大きい体積の重なりを「めり込み」とみなす（mm³）
+KEY_DEPTH = 2.0  # ブラケットなどのキー（フレームの溝に入る突起）とみなす深さ（mm）。フレームは溝なしの角棒で表している
 
 
 @dataclass(frozen=True)
@@ -102,6 +103,23 @@ def _has_thin_part(sketch, d: float) -> bool:
     return False
 
 
+def _in_slot(a: Part, b: Part, piece) -> bool:
+    """フレームと買う部品の重なりが、フレームの溝に入るキー（溝幅以内・深さ KEY_DEPTH 以内）なら True。"""
+    if a.type != "frame":
+        a, b = b, a
+    if a.type != "frame" or b.category != "hardware":
+        return False
+    ends = {x.name: x.pos for x in a.anchors()}
+    axis = [abs(p - q) for p, q in zip(ends["end0"], ends["end1"])]
+    along = axis.index(max(axis))
+    if sorted(axis)[1] > 1e-6:
+        return False  # 斜めのフレームは判定しない
+    bb = piece.bounding_box().size
+    size = (bb.X, bb.Y, bb.Z)
+    across = sorted(size[k] for k in range(3) if k != along)
+    return across[0] <= KEY_DEPTH and across[1] <= profiles.get(a.params["profile"]).slot + 0.5
+
+
 def _check_overlaps(parts: list[Part]) -> list[Issue]:
     """部品同士の3Dのめり込み。接しているだけ（体積ゼロ）はOK。"""
     out = []
@@ -113,7 +131,9 @@ def _check_overlaps(parts: list[Part]) -> list[Issue]:
                 or a.max.Z <= b.min.Z or b.max.Z <= a.min.Z:
             continue  # 外接箱が離れていれば重ならない
         inter = solids[i][1] & solids[j][1]
-        vol = sum(s.volume for s in inter.solids()) if inter is not None else 0.0
+        pieces = [x for x in inter.solids() if x.volume > OVERLAP_TOL] if inter is not None else []
+        pieces = [x for x in pieces if not _in_slot(parts[i], parts[j], x)]
+        vol = sum(x.volume for x in pieces)
         if vol > OVERLAP_TOL:
             out.append(Issue("error", solids[i][0], f"{solids[j][0]} とめり込んでいます（{vol:.1f}mm³）"))
     return out
