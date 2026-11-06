@@ -26,6 +26,63 @@
         0.0,
         0.0
       ]
+    },
+    {
+      "id": "angle_bracket1",
+      "type": "angle_bracket",
+      "params": {
+        "profile": "2020",
+        "arm": 30.0,
+        "t": 4.0,
+        "size": "M5",
+        "ribs": true,
+        "filament": "pla"
+      },
+      "pos": [
+        80.0,
+        0.0,
+        0.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "shaft1",
+      "type": "shaft",
+      "params": {
+        "dia": 8.0,
+        "length": 160.0
+      },
+      "pos": [
+        130.0,
+        25.0,
+        0.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "misumi_bracket1",
+      "type": "misumi_bracket",
+      "params": {
+        "model": "HBLFSN8"
+      },
+      "pos": [
+        135.0,
+        0.0,
+        0.0
+      ],
+      "rot": [
+        0.0,
+        0.0,
+        0.0
+      ]
     }
   ]
 }
