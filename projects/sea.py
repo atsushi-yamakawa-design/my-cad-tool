@@ -3,7 +3,7 @@
 構成（sea_box キットの中身）
 - 2020 フレームの箱（脚4本、上下の横桟 各4本）
 - 天板・底板（sea_plate、レーザー）。ローラーの軸を通す穴と、フレームに留める穴
-- ローラー2本：軸（Ø8 シャフト）＋ 3Dプリントの筒（sea_roller）。片方の軸を天板の上に出して、つまみかモーターで回す
+- ローラー2本：軸（Ø8 シャフト）＋ 3Dプリントの筒（sea_roller、両端に紙ずれ止めの縁と、軸に止めネジで留めるハブ）。片方の軸を天板の上に出して、つまみかモーターで回す
 - 紙のループ（sea_paper）：2本のローラーに掛けた輪。前側の直線部分が窓から見える
 - 前の窓板（sea_window、レーザー）：紙の前に開けた四角い窓
 
@@ -12,7 +12,7 @@
 
 import math
 
-from build123d import Align, Circle, Cylinder, Pos, Rectangle, RectangleRounded, SlotCenterToCenter, extrude
+from build123d import Align, Circle, Cone, Cylinder, Pos, Rot, Rectangle, RectangleRounded, SlotCenterToCenter, extrude
 
 from alucad import flat, frame, materials, profiles
 from alucad.mounting import frame_holes
@@ -23,6 +23,9 @@ from alucad.registry import Anchor, Geometry, Param, component
 CENTER_Z0 = (Align.CENTER, Align.CENTER, Align.MIN)
 PAPER_T = 0.3  # 紙の厚み（表示用）
 AXLE = 8.0  # ローラーの軸の直径
+LIP_FLAT = 1.0  # ローラーの縁（つば）のまっすぐな部分の厚み
+PAPER_GAP = 1.0  # 紙の端と縁のすき間（片側）
+TAP_DRILL = {"M3": 2.5, "M4": 3.3}  # 止めネジの下穴（あとでタップを立てる）
 
 
 @component(
@@ -34,14 +37,41 @@ AXLE = 8.0  # ローラーの軸の直径
         Param("length", float, 140.0, min=20, max=180, label="長さ"),
         Param("bore", float, AXLE, min=3, max=20, label="軸の直径"),
         Param("clearance", float, 0.2, min=0, max=1, label="軸とのすき間（片側）"),
+        Param("lip", float, 2.0, min=0, max=10, label="両端の縁の段差（0で縁なし）"),
+        Param("hub_dia", float, 16.0, min=8, max=60, label="ハブの直径"),
+        Param("hub_len", float, 8.0, min=0, max=30, label="ハブの長さ（片側、0でハブなし）"),
+        Param("set_screw", str, "M3", unit="", choices=tuple(TAP_DRILL), label="止めネジ"),
         FILAMENT,
     ],
 )
-def build_roller(dia, length, bore, clearance, filament) -> Geometry:
-    """紙を掛ける筒。軸に通して使う。原点は下の端面の中心、z=0 がベッド側（立てて刷る）。"""
+def build_roller(dia, length, bore, clearance, lip, hub_dia, hub_len, set_screw, filament) -> Geometry:
+    """紙を掛ける筒。軸に通して使う。原点は下のハブの端面の中心、z=0 がベッド側（立てて刷る）。
+
+    両端に縁（つば）を付けて、紙が上下にずれないようにする。縁の内側は 45° の斜面なので、
+    紙の端が当たると真ん中へ戻り、立てて刷ってもオーバーハングにならない。紙が掛かる部分の長さは length - 2×(lip+1)。
+    縁のさらに外側にハブ（細い出っ張り）を出し、軸に直角な止めネジの下穴を開ける（+X 向き、ハブの長さの真ん中）。
+    全長は length + 2×hub_len。
+    """
     if dia < bore + 2 * clearance + 3:
         raise ValueError("sea_roller: 直径は 軸＋3mm 以上にしてください")
-    solid = Cylinder(dia / 2, length, align=CENTER_Z0) - Cylinder(bore / 2 + clearance, length, align=CENTER_Z0)
+    if hub_len > 0 and hub_dia < bore + 2 * clearance + 6:
+        raise ValueError("sea_roller: ハブの直径は 軸＋6mm 以上にしてください（止めネジのねじ山が切れません）")
+    lip_t = lip + LIP_FLAT if lip > 0 else 0
+    if length - 2 * lip_t < 10:
+        raise ValueError("sea_roller: 長さが足りません（縁の間を 10mm 以上にしてください）")
+    r, rf = dia / 2, dia / 2 + lip
+    solid = Cylinder(r, length, align=CENTER_Z0)
+    if lip > 0:
+        for z0, z_cone, (r0, r1) in ((0, LIP_FLAT, (rf, r)), (length - LIP_FLAT, length - lip_t, (r, rf))):
+            solid += Pos(0, 0, z0) * Cylinder(rf, LIP_FLAT, align=CENTER_Z0)
+            solid += Pos(0, 0, z_cone) * Cone(r0, r1, lip, align=CENTER_Z0)
+    if hub_len > 0:
+        solid = Pos(0, 0, hub_len) * solid
+        for z0 in (0, hub_len + length):
+            solid += Pos(0, 0, z0) * Cylinder(hub_dia / 2, hub_len, align=CENTER_Z0)
+            # 止めネジの下穴：中心から +X へ、ハブの外まで
+            solid -= Pos(0, 0, z0 + hub_len / 2) * Rot(0, 90, 0) * Cylinder(TAP_DRILL[set_screw] / 2, hub_dia, align=CENTER_Z0)
+    solid -= Cylinder(bore / 2 + clearance, length + 2 * hub_len, align=CENTER_Z0)
     return Geometry(solid=solid, anchors=[Anchor("bottom", (0, 0, 0), (0, 0, -1), "face")])
 
 
@@ -158,13 +188,15 @@ def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_m
     bottom = top.with_params().at(0, 0, 0).rot(180, 0, 0).named("bottom")
 
     tp = materials.get(plate_mat).t
-    rl = paper_h + 10
+    lip = 2.0  # ローラー両端の縁の段差（sea_roller の既定値）
+    rl = paper_h + 2 * PAPER_GAP + 2 * (lip + LIP_FLAT)
+    hub = 8.0  # ローラー両端のハブ（止めネジで軸に留める）の長さ
     parts = frames + [top, bottom]
     for sx, tag in ((-1, "l"), (1, "r")):
         # 右の軸だけ天板の上に 25mm 出す（つまみ・モーター用）
         top_extra = 25 if sx > 0 else 2
         parts.append(make("shaft", dia=AXLE, length=h + 2 * tp + 2 + top_extra).at(sx * xr, 0, -tp - 2).named(f"axle_{tag}"))
-        parts.append(make("sea_roller", dia=roller_dia, length=rl).at(sx * xr, 0, zc - rl / 2).named(f"roller_{tag}"))
+        parts.append(make("sea_roller", dia=roller_dia, length=rl, lip=lip, hub_len=hub).at(sx * xr, 0, zc - rl / 2 - hub).named(f"roller_{tag}"))
     if paper:
         parts.append(make("sea_paper", span=2 * xr, roller_dia=roller_dia, h=paper_h).at(0, 0, zc - paper_h / 2).named("paper"))
 
