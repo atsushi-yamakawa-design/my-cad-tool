@@ -70,11 +70,14 @@ MOTOR_HOLES = 16.0  # 取り付けねじ穴（M2）の間隔（正方形の4隅�
         Param("top_flat", float, 0.0, min=0, max=10, label="上の穴の D カット（中心から平らな面まで、0で丸穴）"),
         Param("top_screws", int, 1, min=1, max=2, label="上のハブの止めネジの数"),
         Param("top_screw_z", float, 0.0, min=0, max=60, label="上の止めネジの位置（上の端から、0でハブの真ん中）"),
+        Param("top_axle", float, 0.0, min=0, max=60, label="上のハブに軸が入る長さ（下の端から、0で入らない）"),
+        Param("top_axle_screw", float, 0.0, min=0, max=60, label="その軸の止めネジの位置（上のハブの下の端から、0でなし）"),
         FILAMENT,
     ],
 )
 def build_roller(
-    dia, length, bore, clearance, lip, hub_dia, hub_len, set_screw, top_hub_len, top_bore, top_flat, top_screws, top_screw_z, filament
+    dia, length, bore, clearance, lip, hub_dia, hub_len, set_screw, top_hub_len, top_bore, top_flat, top_screws, top_screw_z,
+    top_axle, top_axle_screw, filament,
 ) -> Geometry:
     """紙を掛ける筒。軸に通して使う。原点は下のハブの端面の中心、z=0 がベッド側（立てて刷る）。
 
@@ -82,7 +85,9 @@ def build_roller(
     紙の端が当たると真ん中へ戻り、立てて刷ってもオーバーハングにならない。紙が掛かる部分の長さは length - 2×(lip+1)。
     縁のさらに外側にハブ（細い出っ張り）を出し、軸に直角な止めネジの下穴を開ける（+X 向き、ハブの長さの真ん中）。
     上のハブだけ長さ・穴を変えて、モーターの軸とのカップリングにできる（D カットの平らな面は -Y 側。
-    止めネジが2本なら、1本は平らな面に当たる -Y 向き、もう1本は +X 向き）。全長は hub_len + length + 上のハブの長さ。
+    止めネジが2本なら、1本は平らな面に当たる -Y 向き、もう1本は +X 向き）。
+    top_axle を付けると、上のハブの下側にも下から軸（bore）が入り、+Y 向きの止めネジで軸をつかめる。
+    全長は hub_len + length + 上のハブの長さ。
     """
     top_hub = top_hub_len or hub_len
     top_bore = top_bore or bore
@@ -90,6 +95,10 @@ def build_roller(
         raise ValueError("sea_roller: D カットは穴の半径より小さくしてください")
     if top_screw_z and top_screw_z > top_hub:
         raise ValueError("sea_roller: 上の止めネジは上のハブの中に入れてください")
+    if top_axle >= top_hub and top_hub > 0:
+        raise ValueError("sea_roller: 上のハブに軸が入る長さは、上のハブより短くしてください")
+    if top_axle_screw and top_axle_screw > top_axle:
+        raise ValueError("sea_roller: 軸の止めネジは、軸が入っている範囲に入れてください")
     if dia < bore + 2 * clearance + 3:
         raise ValueError("sea_roller: 直径は 軸＋3mm 以上にしてください")
     if hub_len > 0 and hub_dia < bore + 2 * clearance + 6:
@@ -120,13 +129,15 @@ def build_roller(
         turns = ([-90] if top_flat else [0]) + ([0 if top_flat else 90] if top_screws > 1 else [])
         for t in turns:
             solid -= screw(z, t)
-    solid -= Cylinder(bore / 2 + clearance, top0, align=CENTER_Z0)
+        if top_axle_screw:
+            solid -= screw(top0 + top_axle_screw, 90)  # 軸をつかむ止めネジ（+Y 向き）
+    solid -= Cylinder(bore / 2 + clearance, top0 + top_axle, align=CENTER_Z0)
     rb = top_bore / 2 + clearance
     hole = Circle(rb)
     if top_flat:
         f = top_flat + clearance  # -Y 側を平らに（y < -f を埋める）
         hole -= Pos(0, -f - rb) * Rectangle(2 * rb, 2 * rb)
-    solid -= Pos(0, 0, top0) * extrude(hole, top_hub)
+    solid -= Pos(0, 0, top0 + top_axle) * extrude(hole, top_hub - top_axle)
     return Geometry(solid=solid, anchors=[Anchor("bottom", (0, 0, 0), (0, 0, -1), "face")])
 
 
@@ -263,13 +274,19 @@ def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_m
         axle_top = h + tp + 2  # 軸は天板の上に 2mm 出す
         if motor and sx < 0:
             # 左のローラーは上のハブを天板の下 0.5mm まで伸ばし、モーターの軸（D カット）を止めネジ2本でつかむ。
-            # Ø8 の軸は下からローラーの胴の上の端まで（上はモーターの軸が支える）
-            top_hub = h - 0.5 - (z_roll + hub + rl)
-            grip = h - 0.5 - (h + tp - MOTOR_SHAFT_LEN)  # モーターの軸がハブに入る長さ
+            # Ø8 の軸は下から上のハブの中（モーターの軸の先の 3mm 手前）まで入れ、そのすぐ下を +Y 向きの止めネジでつかむ。
+            # 軸の止めネジは上の横桟より下に置く（組み立てたあと、後ろから六角レンチが届くように）
+            top0 = z_roll + hub + rl  # 上のハブの下端
+            top_hub = h - 0.5 - top0
+            shaft_tip = h + tp - MOTOR_SHAFT_LEN  # モーターの軸の先
+            grip = h - 0.5 - shaft_tip  # モーターの軸がハブに入る長さ
+            top_axle = shaft_tip - 2 - top0  # 軸の穴はモーターの軸の先の 2mm 手前まで
+            axle_screw = min(top_axle - 3, h - s - 2 - TAP_DRILL["M3"] / 2 - top0)
             roller = roller.with_params(
-                top_hub_len=top_hub, top_bore=MOTOR_SHAFT, top_flat=MOTOR_FLAT, top_screws=2, top_screw_z=grip / 2
+                top_hub_len=top_hub, top_bore=MOTOR_SHAFT, top_flat=MOTOR_FLAT, top_screws=2, top_screw_z=grip / 2,
+                top_axle=top_axle, top_axle_screw=axle_screw,
             )
-            axle_top = z_roll + hub + rl - 1
+            axle_top = shaft_tip - 3
         parts.append(make("shaft", dia=AXLE, length=axle_top + tp + 2).at(sx * xr, 0, -tp - 2).named(f"axle_{tag}"))
         parts.append(roller.at(sx * xr, 0, z_roll).named(f"roller_{tag}"))
     if motor:
