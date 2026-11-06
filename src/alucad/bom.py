@@ -5,6 +5,7 @@
 - ネジ類: 板の穴から相手を探して判定する
     フレームの側面に当たる穴 → ボルト＋Tナット
     フレームの端面に当たる穴 → ボルト＋端面タップ加工
+    買う部品（モーターなど）に当たる穴 → ボルトだけ（相手のねじ穴に締める）
     相手のフレームがない穴   → ボルト＋ナット（板同士など）
   ボルトの長さは目安（板厚＋ねじ込み代を、よくある長さに切り上げ）。
   3Dプリント部品は厚み t パラメータを持つもの（L字アングルなど）、買う部品は穴に厚み（Anchor.depth）を
@@ -31,7 +32,7 @@ from .nest import shelf_pack
 from .part import Part
 
 BOLT_LENGTHS = (6, 8, 10, 12, 16, 20, 25, 30, 35, 40)
-GRIP = {"tnut": 6.0, "tap": 8.0, "nut": 5.0}  # 板厚に足すねじ込み代の目安（mm）
+GRIP = {"tnut": 6.0, "tap": 8.0, "nut": 5.0, "thread": 3.0}  # 板厚に足すねじ込み代の目安（mm）
 KIND_LABEL = {"tnut": "Tナット", "tap": "端面タップ", "nut": "ナット"}
 
 
@@ -124,6 +125,7 @@ def bom(obj: Part | list[Part] | Assembly, gap: float = 3.0) -> Bom:
     name = obj.name if isinstance(obj, Assembly) else "parts"
     parts = _parts(obj)
     frames = [p for p in parts if p.type == "frame"]
+    hardware = [p for p in parts if p.category == "hardware"]
     b = Bom(name)
 
     for f in frames:
@@ -137,10 +139,11 @@ def bom(obj: Part | list[Part] | Assembly, gap: float = 3.0) -> Bom:
             by_mat[p.mat].append(p)
         if p.category == "hardware":
             b.hardware[(registry.get(p.type).label, _spec(p))] += 1
-        for kind, size, prof, t in _hole_partners(p, frames, _thickness(p)):
+        for kind, size, prof, t in _hole_partners(p, frames, _thickness(p), [q for q in hardware if q is not p]):
             length = _bolt_length(t + GRIP[kind])
             b.bolts[(size, length)] += 1
-            b.joints[(kind, size, prof)] += 1
+            if kind != "thread":  # 相手のねじ穴に締めるなら、ナット類は要らない
+                b.joints[(kind, size, prof)] += 1
 
     for p, n in print_groups(parts):
         s = p.geometry.solid.bounding_box().size
@@ -185,7 +188,7 @@ def _spec(p: Part) -> str:
     return "、".join(out) or "-"
 
 
-def _hole_partners(plate: Part, frames: list[Part], t_default: float | None):
+def _hole_partners(plate: Part, frames: list[Part], t_default: float | None, others: list[Part] = ()):
     """板（や3Dプリント部品・買う部品）の各穴について、(種類, サイズ, 断面, 厚み) を返す。厚みが分からない穴は飛ばす。"""
     for a in plate.geometry.anchors:
         if a.kind != "hole":
@@ -215,7 +218,14 @@ def _hole_partners(plate: Part, frames: list[Part], t_default: float | None):
                 parallel = abs(abs(d.normalized().dot(axis.normalized())) - 1) < 1e-6
                 hit = ("tap" if parallel else "tnut", size, f.params["profile"], t)
                 break
+        if hit is None and any(_inside_box(o, pt) for o in others for pt in world):
+            hit = ("thread", size, "", t)  # 買う部品のねじ穴（穴の中は形の外なので、外接箱で見る）
         yield hit or ("nut", size, "", t)
+
+
+def _inside_box(p: Part, pt: Vector) -> bool:
+    bb = p.solid().bounding_box()
+    return bb.min.X < pt.X < bb.max.X and bb.min.Y < pt.Y < bb.max.Y and bb.min.Z < pt.Z < bb.max.Z
 
 
 def _bolt_length(need: float) -> int:

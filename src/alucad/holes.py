@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 HOLES: dict[str, float] = {
+    "M2": 2.4,
     "M3": 3.4,
     "M4": 4.5,
     "M5": 5.5,

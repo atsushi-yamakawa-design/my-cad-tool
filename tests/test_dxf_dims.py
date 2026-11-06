@@ -8,6 +8,7 @@ from alucad import HOLES, export_dxf, panel
 
 KERF = 0.2
 HOLE_LIST = [[-50, -30, "M3"], [50, -30, "M4"], [-50, 30, "M5"], [50, 30, "M6"]]
+HOLE_DIAS = sorted(HOLES[s] for _, _, s in HOLE_LIST)
 
 
 def _read(path):
@@ -37,13 +38,13 @@ def test_units_are_mm(tmp_path, plate):
 def test_no_compensation_matches_sketch(tmp_path, plate):
     _, msp = _read(export_dxf(plate, tmp_path / "a.dxf", kerf=KERF, compensate=False))
     assert _layer_size(msp, "cut") == (120, 80)
-    assert _hole_dias(msp) == sorted(HOLES.values())
+    assert _hole_dias(msp) == HOLE_DIAS
 
 
 def test_compensation_outer_grows_holes_shrink(tmp_path, plate):
     _, msp = _read(export_dxf(plate, tmp_path / "a.dxf", kerf=KERF, compensate=True))
     assert _layer_size(msp, "cut") == (120 + KERF, 80 + KERF)
-    assert _hole_dias(msp) == pytest.approx(sorted(d - KERF for d in HOLES.values()))
+    assert _hole_dias(msp) == pytest.approx([d - KERF for d in HOLE_DIAS])
 
 
 def test_zero_kerf_is_same_as_off(tmp_path, plate):

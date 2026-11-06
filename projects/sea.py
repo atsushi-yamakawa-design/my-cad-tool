@@ -6,13 +6,25 @@
 - ローラー2本：軸（Ø8 シャフト）＋ 3Dプリントの筒（sea_roller、両端に紙ずれ止めの縁と、軸に止めネジで留めるハブ）。片方の軸を天板の上に出して、つまみかモーターで回す
 - 紙のループ（sea_paper）：2本のローラーに掛けた輪。前側の直線部分が窓から見える
 - 前の窓板（sea_window、レーザー）：紙の前に開けた四角い窓
+- モーター（parts/pkp213_motor.py、オリエンタル PKP213D05A）：天板の上に下向きに付け、左のローラーの上のハブ（カップリング）を回す
 
 座標: X が幅（左右）、Y が奥行き（-Y が前＝見る側）、Z が上。原点は底面の中心。
 """
 
 import math
 
-from build123d import Align, Circle, Cone, Cylinder, Pos, Rot, Rectangle, RectangleRounded, SlotCenterToCenter, extrude
+from build123d import (
+    Align,
+    Circle,
+    Cone,
+    Cylinder,
+    Pos,
+    Rectangle,
+    RectangleRounded,
+    Rot,
+    SlotCenterToCenter,
+    extrude,
+)
 
 from alucad import flat, frame, materials, profiles
 from alucad.mounting import frame_holes
@@ -31,6 +43,14 @@ BRACKET = {"2020": "HBLFSN5", "3030": "HBLFSN6-5"}
 _MB = REGISTRY.get("misumi_bracket")
 BRACKET_MODELS = tuple(_MB.params[0].choices) if _MB else ()
 
+# モーター：オリエンタルモーター PKP213D05A（parts/pkp213_motor.py）の寸法。STEP がないときは使えない
+MOTOR_OK = "pkp213_motor" in REGISTRY
+MOTOR_PILOT = 15.0  # 取り付け面のインロー（位置決めの出っ張り）の直径。高さ 1.5mm
+MOTOR_SHAFT = 4.0  # 軸の直径。先の 7mm は D カット（中心から平らな面まで 1.5mm）
+MOTOR_SHAFT_LEN = 10.0  # 取り付け面から軸の先まで
+MOTOR_FLAT = 1.5
+MOTOR_HOLES = 16.0  # 取り付けねじ穴（M2）の間隔（正方形の4隅）
+
 
 @component(
     "sea_roller",
@@ -45,17 +65,31 @@ BRACKET_MODELS = tuple(_MB.params[0].choices) if _MB else ()
         Param("hub_dia", float, 16.0, min=8, max=60, label="ハブの直径"),
         Param("hub_len", float, 8.0, min=0, max=30, label="ハブの長さ（片側、0でハブなし）"),
         Param("set_screw", str, "M3", unit="", choices=tuple(TAP_DRILL), label="止めネジ"),
+        Param("top_hub_len", float, 0.0, min=0, max=60, label="上のハブの長さ（0で下と同じ）"),
+        Param("top_bore", float, 0.0, min=0, max=20, label="上のハブの穴の直径（0で軸と同じ）"),
+        Param("top_flat", float, 0.0, min=0, max=10, label="上の穴の D カット（中心から平らな面まで、0で丸穴）"),
+        Param("top_screws", int, 1, min=1, max=2, label="上のハブの止めネジの数"),
+        Param("top_screw_z", float, 0.0, min=0, max=60, label="上の止めネジの位置（上の端から、0でハブの真ん中）"),
         FILAMENT,
     ],
 )
-def build_roller(dia, length, bore, clearance, lip, hub_dia, hub_len, set_screw, filament) -> Geometry:
+def build_roller(
+    dia, length, bore, clearance, lip, hub_dia, hub_len, set_screw, top_hub_len, top_bore, top_flat, top_screws, top_screw_z, filament
+) -> Geometry:
     """紙を掛ける筒。軸に通して使う。原点は下のハブの端面の中心、z=0 がベッド側（立てて刷る）。
 
     両端に縁（つば）を付けて、紙が上下にずれないようにする。縁の内側は 45° の斜面なので、
     紙の端が当たると真ん中へ戻り、立てて刷ってもオーバーハングにならない。紙が掛かる部分の長さは length - 2×(lip+1)。
     縁のさらに外側にハブ（細い出っ張り）を出し、軸に直角な止めネジの下穴を開ける（+X 向き、ハブの長さの真ん中）。
-    全長は length + 2×hub_len。
+    上のハブだけ長さ・穴を変えて、モーターの軸とのカップリングにできる（D カットの平らな面は -Y 側。
+    止めネジが2本なら、1本は平らな面に当たる -Y 向き、もう1本は +X 向き）。全長は hub_len + length + 上のハブの長さ。
     """
+    top_hub = top_hub_len or hub_len
+    top_bore = top_bore or bore
+    if top_flat and not 0 < top_flat < top_bore / 2:
+        raise ValueError("sea_roller: D カットは穴の半径より小さくしてください")
+    if top_screw_z and top_screw_z > top_hub:
+        raise ValueError("sea_roller: 上の止めネジは上のハブの中に入れてください")
     if dia < bore + 2 * clearance + 3:
         raise ValueError("sea_roller: 直径は 軸＋3mm 以上にしてください")
     if hub_len > 0 and hub_dia < bore + 2 * clearance + 6:
@@ -69,13 +103,30 @@ def build_roller(dia, length, bore, clearance, lip, hub_dia, hub_len, set_screw,
         for z0, z_cone, (r0, r1) in ((0, LIP_FLAT, (rf, r)), (length - LIP_FLAT, length - lip_t, (r, rf))):
             solid += Pos(0, 0, z0) * Cylinder(rf, LIP_FLAT, align=CENTER_Z0)
             solid += Pos(0, 0, z_cone) * Cone(r0, r1, lip, align=CENTER_Z0)
+    drill = TAP_DRILL[set_screw] / 2
+
+    def screw(z, turn):
+        """止めネジの下穴：中心から外へ（turn は +X から Z まわりに回す角度）"""
+        return Pos(0, 0, z) * Rot(0, 0, turn) * Rot(0, 90, 0) * Cylinder(drill, hub_dia, align=CENTER_Z0)
+
+    solid = Pos(0, 0, hub_len) * solid
     if hub_len > 0:
-        solid = Pos(0, 0, hub_len) * solid
-        for z0 in (0, hub_len + length):
-            solid += Pos(0, 0, z0) * Cylinder(hub_dia / 2, hub_len, align=CENTER_Z0)
-            # 止めネジの下穴：中心から +X へ、ハブの外まで
-            solid -= Pos(0, 0, z0 + hub_len / 2) * Rot(0, 90, 0) * Cylinder(TAP_DRILL[set_screw] / 2, hub_dia, align=CENTER_Z0)
-    solid -= Cylinder(bore / 2 + clearance, length + 2 * hub_len, align=CENTER_Z0)
+        solid += Cylinder(hub_dia / 2, hub_len, align=CENTER_Z0)
+        solid -= screw(hub_len / 2, 0)
+    top0 = hub_len + length  # 上のハブの下端
+    if top_hub > 0:
+        solid += Pos(0, 0, top0) * Cylinder(hub_dia / 2, top_hub, align=CENTER_Z0)
+        z = top0 + top_hub - (top_screw_z or top_hub / 2)
+        turns = ([-90] if top_flat else [0]) + ([0 if top_flat else 90] if top_screws > 1 else [])
+        for t in turns:
+            solid -= screw(z, t)
+    solid -= Cylinder(bore / 2 + clearance, top0, align=CENTER_Z0)
+    rb = top_bore / 2 + clearance
+    hole = Circle(rb)
+    if top_flat:
+        f = top_flat + clearance  # -Y 側を平らに（y < -f を埋める）
+        hole -= Pos(0, -f - rb) * Rectangle(2 * rb, 2 * rb)
+    solid -= Pos(0, 0, top0) * extrude(hole, top_hub)
     return Geometry(solid=solid, anchors=[Anchor("bottom", (0, 0, 0), (0, 0, -1), "face")])
 
 
@@ -133,15 +184,17 @@ def build_window(w, h, win_w, win_h, win_r, mat, holes) -> Geometry:
         Param("r", float, 4.0, min=0, label="角R"),
         Param("span", float, 214.0, min=0, label="軸の穴の間隔"),
         Param("axle_hole", float, AXLE + 1, min=1, label="軸の穴の直径"),
+        Param("hole_l", float, 0.0, min=0, label="左（-X）の穴の直径（0で軸の穴と同じ。モーターのインロー用）"),
         flat.MAT,
         Param("holes", list, [], unit="", label="ネジ穴 [[x, y, サイズ], ...]"),
     ],
 )
-def build_plate(w, d, r, span, axle_hole, mat, holes) -> Geometry:
+def build_plate(w, d, r, span, axle_hole, hole_l, mat, holes) -> Geometry:
     """ローラーの軸を通す穴が2つある板。軸の穴はネジ穴ではないので部品表に数えない。原点は板の中心・下面。"""
     outline = RectangleRounded(w, d, r) if r > 0 else Rectangle(w, d)
     for sx in (-1, 1):
-        outline -= Pos(sx * span / 2, 0) * Circle(axle_hole / 2)
+        dia = hole_l if sx < 0 and hole_l else axle_hole
+        outline -= Pos(sx * span / 2, 0) * Circle(dia / 2)
     return flat.flat_geometry(outline, mat, holes, name="sea_plate")
 
 
@@ -161,9 +214,10 @@ def build_plate(w, d, r, span, axle_hole, mat, holes) -> Geometry:
         Param("window_mat", str, "mdf3", unit="", choices=flat.MAT.choices, label="窓板の材料"),
         Param("paper", bool, True, unit="", label="紙を表示する"),
         Param("brackets", bool, bool(BRACKET_MODELS), unit="", label="側面の下の角にブラケット"),
+        Param("motor", bool, MOTOR_OK, unit="", label="左のローラーをモーターで回す"),
     ],
 )
-def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_mat, paper, brackets) -> Geometry:
+def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_mat, paper, brackets, motor) -> Geometry:
     """原点は底面（フレームの下面）の中心。-Y が前（窓）。"""
     s = profiles.get(profile).size
     r = roller_dia / 2
@@ -188,20 +242,41 @@ def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_m
         ]
 
     top = make("sea_plate", w=w, d=d, span=2 * xr, mat=plate_mat).at(0, 0, h).named("top")
-    top = top.with_params(holes=frame_holes(top, frames))
+    holes = frame_holes(top, frames)
     # 底板は天板と同じ穴で、裏返して（上面をフレーム側に）下に付ける
-    bottom = top.with_params().at(0, 0, 0).rot(180, 0, 0).named("bottom")
+    bottom = top.with_params(holes=holes).at(0, 0, 0).rot(180, 0, 0).named("bottom")
+    if motor:
+        # 天板の左の穴はモーターのインローを通す大きさにして、まわりに M2 のねじ穴を4つ（下からモーターへ締める）
+        m = MOTOR_HOLES / 2
+        holes = holes + [[-xr + mx * m, my * m, "M2"] for mx in (-1, 1) for my in (-1, 1)]
+        top = top.with_params(hole_l=MOTOR_PILOT + 0.5)
+    top = top.with_params(holes=holes)
 
     tp = materials.get(plate_mat).t
     lip = 2.0  # ローラー両端の縁の段差（sea_roller の既定値）
     rl = paper_h + 2 * PAPER_GAP + 2 * (lip + LIP_FLAT)
     hub = 8.0  # ローラー両端のハブ（止めネジで軸に留める）の長さ
+    z_roll = zc - rl / 2 - hub  # ローラーの下端
     parts = frames + [top, bottom]
     for sx, tag in ((-1, "l"), (1, "r")):
-        # 右の軸だけ天板の上に 25mm 出す（つまみ・モーター用）
-        top_extra = 25 if sx > 0 else 2
-        parts.append(make("shaft", dia=AXLE, length=h + 2 * tp + 2 + top_extra).at(sx * xr, 0, -tp - 2).named(f"axle_{tag}"))
-        parts.append(make("sea_roller", dia=roller_dia, length=rl, lip=lip, hub_len=hub).at(sx * xr, 0, zc - rl / 2 - hub).named(f"roller_{tag}"))
+        roller = make("sea_roller", dia=roller_dia, length=rl, lip=lip, hub_len=hub)
+        axle_top = h + tp + 2  # 軸は天板の上に 2mm 出す
+        if motor and sx < 0:
+            # 左のローラーは上のハブを天板の下 0.5mm まで伸ばし、モーターの軸（D カット）を止めネジ2本でつかむ。
+            # Ø8 の軸は下からローラーの胴の上の端まで（上はモーターの軸が支える）
+            top_hub = h - 0.5 - (z_roll + hub + rl)
+            grip = h - 0.5 - (h + tp - MOTOR_SHAFT_LEN)  # モーターの軸がハブに入る長さ
+            roller = roller.with_params(
+                top_hub_len=top_hub, top_bore=MOTOR_SHAFT, top_flat=MOTOR_FLAT, top_screws=2, top_screw_z=grip / 2
+            )
+            axle_top = z_roll + hub + rl - 1
+        parts.append(make("shaft", dia=AXLE, length=axle_top + tp + 2).at(sx * xr, 0, -tp - 2).named(f"axle_{tag}"))
+        parts.append(roller.at(sx * xr, 0, z_roll).named(f"roller_{tag}"))
+    if motor:
+        if not MOTOR_OK:
+            raise ValueError("sea_box: モーターの STEP がありません（PKP213D05A.stp を parts/vendor/ に置くか、モーターを外してください）")
+        # 天板の上に、軸を下に向けて置く（線は後ろ側に出る）
+        parts.append(make("pkp213_motor").at(-xr, 0, h + tp).rot(180, 0, 0).named("motor"))
     if paper:
         parts.append(make("sea_paper", span=2 * xr, roller_dia=roller_dia, h=paper_h).at(0, 0, zc - paper_h / 2).named("paper"))
 
