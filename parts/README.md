@@ -22,7 +22,7 @@ GUI のパレット、デザインの JSON、書き出し（DXF / STL / STEP）�
 Google Drive に置いて `parts/vendor` をそこへのリンクにしておくと、どの Mac でも同じ STEP を使えます:
 
 ```bash
-ln -s "$HOME/Library/CloudStorage/GoogleDrive-<アカウント>/マイドライブ/プロト・実験/alucad_vendor" parts/vendor
+ln -s "$HOME/Library/CloudStorage/GoogleDrive-<アカウント>/マイドライブ/cad-data/vendor" parts/vendor
 ```
 
 型番を増やすときは、STEP を置いてから
