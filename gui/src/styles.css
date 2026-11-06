@@ -322,6 +322,9 @@ textarea.bad { border-color: var(--danger); }
 .tree-type { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
 .tree-row .eye { padding: 0 2px; font-size: 10px; opacity: 0.5; }
 .tree-row:hover .eye, .tree-row.hidden .eye { opacity: 1; }
+.tree-row .spot { padding: 0 2px; font-size: 11px; opacity: 0; }
+.tree-row:hover .spot { opacity: 0.6; }
+.tree-row .spot.on { opacity: 1; color: var(--accent); }
 .props-note { color: var(--muted); font-size: 12px; line-height: 1.6; }
 .readonly-params { font-size: 12px; display: grid; grid-template-columns: 88px 1fr; gap: 2px 8px; }
 .readonly-params dt { color: var(--muted); }

@@ -51,7 +51,8 @@ function TreeRow({
   const isOpen = open.includes(path);
   const on = useStore((s) => s.selected === path || s.multi.includes(path));
   const hidden = useStore((s) => s.hidden.includes(path));
-  const { select, toggleHidden } = useStore.getState();
+  const lit = useStore((s) => s.spotlight?.path === path);
+  const { select, toggleHidden, toggleSpotlight } = useStore.getState();
   const def = componentDef(spec.type);
   const isKit = kids !== null && groupChildren(spec) === null;
 
@@ -78,6 +79,16 @@ function TreeRow({
           {def?.label ?? spec.type}
           {isKit && "（キット）"}
         </span>
+        <button
+          className={`icon spot ${lit ? "on" : ""}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            void toggleSpotlight(path);
+          }}
+          title={lit ? "元の表示に戻す" : "これだけ表示する（ほかを全部隠す）"}
+        >
+          ◎
+        </button>
         <button
           className="icon eye"
           onClick={(e) => {

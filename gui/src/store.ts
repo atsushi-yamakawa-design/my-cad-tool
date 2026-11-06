@@ -5,6 +5,7 @@ import { api, ApiError, clearMeshCache } from "./api";
 import { merge, sameAssembly, takeTheirs } from "./merge";
 import { cleanMm, rotateWorld } from "./transform";
 import {
+  childrenOf,
   findNode,
   GROUP,
   groupChildren,
@@ -74,6 +75,7 @@ interface State {
   selected: string | null; // 選んでいる部品のパス（"rollers/roller_l" のように id を「/」でつなぐ）
   multi: string[]; // Shift/⌘ で一緒に選んだ部品のパス（selected は含まない）
   hidden: string[]; // 画面で隠している部品のパス（書き出しには関係しない。デザインごとにブラウザに覚える）
+  spotlight: { path: string; before: string[] } | null; // スポットライト中の部品と、その前の hidden（戻すため）
   dirty: boolean;
   past: AssemblySpec[];
   future: AssemblySpec[];
@@ -113,6 +115,7 @@ interface State {
   select: (path: string | null, add?: boolean) => void;
   toggleHidden: (path: string) => void;
   setHiddenPaths: (hidden: string[]) => void;
+  toggleSpotlight: (path: string) => Promise<void>;
   setTool: (tool: Tool) => void;
   setSnap: (snap: number) => void;
   nudge: (axis: 0 | 1 | 2, steps: number) => void;
@@ -144,6 +147,7 @@ export const useStore = create<State>((set, get) => ({
   selected: null,
   multi: [],
   hidden: [],
+  spotlight: null,
   dirty: false,
   past: [],
   future: [],
@@ -170,7 +174,7 @@ export const useStore = create<State>((set, get) => ({
     try {
       const { assembly, stamp } = await api.load(name);
       set({ asm: assembly, base: assembly, name, stamp, selected: null, multi: [], dirty: false, past: [], future: [], conflict: null });
-      set({ hidden: loadPref<string[]>(`hidden.${name}`, []) });
+      set({ hidden: loadPref<string[]>(`hidden.${name}`, []), spotlight: null });
       savePref("lastDesign", name);
     } catch (e) {
       get().notify((e as Error).message, "error");
@@ -186,6 +190,7 @@ export const useStore = create<State>((set, get) => ({
       selected: null,
       multi: [],
       hidden: [],
+      spotlight: null,
       dirty: false,
       past: [],
       future: [],
@@ -479,6 +484,31 @@ export const useStore = create<State>((set, get) => ({
   toggleHidden: (path) => {
     const { hidden } = get();
     get().setHiddenPaths(hidden.includes(path) ? hidden.filter((p) => p !== path) : [...hidden, path]);
+  },
+
+  /**
+   * スポットライト：path（とその中身）だけを見せて、ほかを全部隠す。同じ部品でもう一度押すと元の表示に戻す。
+   * 親は隠さず、親ごとの兄弟を隠す（キットの中身も選べるように、キットの中身はサーバーに聞く）
+   */
+  toggleSpotlight: async (path) => {
+    const { spotlight, hidden, asm } = get();
+    if (spotlight?.path === path) {
+      set({ spotlight: null });
+      get().setHiddenPaths(spotlight.before);
+      return;
+    }
+    const before = spotlight ? spotlight.before : hidden;
+    const ids = splitPath(path);
+    const next: string[] = [];
+    let siblings: PartSpec[] | null = asm.parts;
+    for (let i = 0; i < ids.length && siblings; i++) {
+      const parent = ids.slice(0, i).join("/");
+      for (const s of siblings) if (s.id !== ids[i]) next.push(joinPath(parent, s.id));
+      const node: PartSpec | undefined = siblings.find((s) => s.id === ids[i]);
+      siblings = node ? await childrenOf(node).catch(() => null) : null;
+    }
+    set({ spotlight: { path, before } });
+    get().setHiddenPaths(next);
   },
 
   setHiddenPaths: (hidden) => {
