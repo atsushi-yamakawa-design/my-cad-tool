@@ -70,6 +70,7 @@ uv run alucad part frame_foot --set depth=12 --set size=M4 --png out/foot.png --
 uv run alucad build designs/stand.json        # designs/out/ に DXF・STL・STEP・GLB・部品表・プレビュー
 uv run alucad build designs/stand.json --only stl,png
 ```
+書き出し先は、リポジトリ直下の `alucad.local.toml`（git に入れない）に `out_dir` があれば `<out_dir>/<デザイン名>/`（持ち主の Google Drive の cad-data）、なければ `designs/out/`。
 build は最初に加工前チェックをして、エラーがあれば止まる（`--force` で無視）。
 
 ## 作ったら必ず確認する（この順で）

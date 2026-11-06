@@ -140,7 +140,7 @@ def create_app(designs_dir: Path | None = None) -> FastAPI:
 
     @app.post("/api/designs/{name}/build")
     def build_design(name: str, spec: AssemblySpec, base: str = ""):
-        """保存してから DXF / STL / STEP / GLB / 部品表 を designs/out/ に書き出す。"""
+        """保存してから DXF / STL / STEP / GLB / 部品表 を書き出す（書き出し先は cli.default_out_dir）。"""
         saved = save_design(name, spec, base)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")

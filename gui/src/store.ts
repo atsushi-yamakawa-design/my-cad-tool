@@ -280,7 +280,8 @@ export const useStore = create<State>((set, get) => ({
       const { designs } = await api.designs();
       set({ designs });
       const files = res.files.map((f) => f.split("/").pop()).join(", ");
-      get().notify(`designs/out/ に書き出しました: ${files}`);
+      const dir = res.files[0]?.split("/").slice(-3, -1).join("/") ?? "";
+      get().notify(`${dir}/ に書き出しました: ${files}`);
     } catch (e) {
       get().notify((e as Error).message, "error");
     }

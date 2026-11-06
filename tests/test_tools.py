@@ -67,6 +67,20 @@ def test_cli_build_all(tmp_path, stand_asm):
     assert all(p.exists() and p.parent == tmp_path / "out" for p in paths)
 
 
+def test_default_out_dir(tmp_path, monkeypatch):
+    from alucad import cli
+
+    repo = tmp_path / "repo"
+    (repo / "designs").mkdir(parents=True)
+    monkeypatch.setattr(cli, "REPO", repo)
+    monkeypatch.setattr(cli, "LOCAL_CONFIG", repo / "alucad.local.toml")
+    assert cli.default_out_dir(repo / "designs" / "sea.json") == repo / "designs" / "out"
+    cli.LOCAL_CONFIG.write_text(f'out_dir = "{tmp_path / "drive"}"\n', encoding="utf-8")
+    assert cli.default_out_dir(repo / "designs" / "sea.json") == tmp_path / "drive" / "sea"
+    # designs/ 以外（テストや examples）はこれまで通り JSON の隣の out/
+    assert cli.default_out_dir(tmp_path / "x.json") == tmp_path / "out"
+
+
 def test_cli_main_only_and_out(tmp_path, capsys):
     src = Assembly("box", [finger_box(120, 80, 60)]).save(tmp_path / "box.json")
     assert main(["build", str(src), "--only", "dxf,bom", "-o", str(tmp_path / "dist")]) == 0

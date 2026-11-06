@@ -17,3 +17,6 @@ out/
 
 # メーカーの CAD データ（再配布できないので公開リポジトリに入れない）
 parts/vendor
+
+# この PC だけの設定（Google Drive の書き出し先など）
+alucad.local.toml

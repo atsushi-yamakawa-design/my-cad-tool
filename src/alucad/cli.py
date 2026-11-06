@@ -1,6 +1,7 @@
 """コマンドライン: JSON（アセンブリ）から全部書き出す。
 
   uv run alucad build designs/stand.json            → designs/out/ に DXF・STL・STEP・GLB・部品表
+                                                    （alucad.local.toml の out_dir があれば <out_dir>/stand/）
   uv run alucad build designs/stand.json -o dist    → 出力先を指定
   uv run alucad build designs/stand.json --only dxf,bom
   uv run alucad check designs/stand.json            → 加工前チェックだけ
@@ -23,6 +24,24 @@ import warnings
 from pathlib import Path
 
 FORMATS = ("dxf", "stl", "step", "glb", "bom", "png")
+REPO = Path(__file__).resolve().parents[2]
+LOCAL_CONFIG = REPO / "alucad.local.toml"  # この PC だけの設定（git に入れない）
+
+
+def default_out_dir(json_path: str | Path) -> Path:
+    """-o を省略したときの書き出し先。
+
+    リポジトリの designs/ にあるデザインで、alucad.local.toml に out_dir があれば <out_dir>/<デザイン名>/。
+    それ以外は JSON と同じ場所の out/
+    """
+    json_path = Path(json_path).resolve()
+    if json_path.parent == REPO / "designs" and LOCAL_CONFIG.exists():
+        import tomllib
+
+        out_dir = tomllib.loads(LOCAL_CONFIG.read_text(encoding="utf-8")).get("out_dir")
+        if out_dir:
+            return Path(out_dir).expanduser() / json_path.stem
+    return json_path.parent / "out"
 
 
 def build(json_path: str | Path, out_dir: str | Path | None = None, only=FORMATS,
@@ -33,7 +52,7 @@ def build(json_path: str | Path, out_dir: str | Path | None = None, only=FORMATS
 
     json_path = Path(json_path)
     asm = Assembly.load(json_path)
-    out = Path(out_dir) if out_dir else json_path.parent / "out"
+    out = Path(out_dir) if out_dir else default_out_dir(json_path)
     paths: list[Path] = []
     if "dxf" in only and asm.flat_parts():
         paths += export_sheets(asm, out, compensate=compensate, gap=gap)
@@ -59,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
 
     b = sub.add_parser("build", help="JSONから DXF / STL / STEP / GLB / 部品表 を書き出す")
     b.add_argument("json", help="アセンブリのJSONファイル")
-    b.add_argument("-o", "--out", help="出力フォルダ（省略時は JSON と同じ場所の out/）")
+    b.add_argument("-o", "--out", help="出力フォルダ（省略時は JSON と同じ場所の out/。alucad.local.toml の out_dir があればそこ）")
     b.add_argument("--only", default=",".join(FORMATS), help=f"書き出す形式（カンマ区切り。{','.join(FORMATS)}）")
     b.add_argument("--no-kerf", action="store_true", help="カーフ補正をしない（設計寸法のまま）")
     b.add_argument("--gap", type=float, default=3.0, help="DXFでパーツ同士を空ける間隔 mm（既定 3）")
@@ -122,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
         from .preview import render
 
         asm = Assembly.load(args.json)
-        out = Path(args.out) if args.out else Path(args.json).parent / "out" / f"{asm.name}_preview.png"
+        out = Path(args.out) if args.out else default_out_dir(args.json) / f"{asm.name}_preview.png"
         print("書き出し:", render(asm, out, asm.name))
     elif args.cmd == "part":
         return _part(args)
