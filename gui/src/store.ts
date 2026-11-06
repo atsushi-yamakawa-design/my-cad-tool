@@ -131,13 +131,17 @@ export const useStore = create<State>((set, get) => ({
   init: async () => {
     const [catalog, { designs }] = await Promise.all([api.catalog(), api.designs()]);
     set({ catalog, designs });
-    if (designs.includes("stand")) await get().openDesign("stand");
+    // 前回開いていたデザインを開く。なくなっていたら stand（それもなければ空のまま）
+    const last = loadPref<string | null>("lastDesign", null);
+    const first = last && designs.includes(last) ? last : designs.includes("stand") ? "stand" : null;
+    if (first) await get().openDesign(first);
   },
 
   openDesign: async (name) => {
     try {
       const { assembly, stamp } = await api.load(name);
       set({ asm: assembly, base: assembly, name, stamp, selected: null, dirty: false, past: [], future: [], conflict: null });
+      savePref("lastDesign", name);
     } catch (e) {
       get().notify((e as Error).message, "error");
     }
@@ -420,6 +424,7 @@ async function withMerge<T extends { stamp: string; assembly: AssemblySpec }>(se
         asm: now === sent ? res.assembly : { ...now, name: res.assembly.name },
         dirty: now !== sent,
       });
+      savePref("lastDesign", useStore.getState().name); // 新しい名前で保存したときも次回はそれを開く
       return res;
     } catch (e) {
       if (!(e instanceof ApiError && e.status === 409) || attempt > 0) throw e;
