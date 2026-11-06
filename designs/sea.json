@@ -15,8 +15,8 @@
         "roller_dia": 20.0,
         "paper_h": 130.0,
         "margin": 10.0,
-        "plate_mat": "mdf3",
-        "window_mat": "mdf3",
+        "plate_mat": "acrylic3",
+        "window_mat": "acrylic3",
         "paper": true
       },
       "pos": [
