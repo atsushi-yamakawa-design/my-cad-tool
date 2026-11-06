@@ -14,6 +14,7 @@ GUI のパレット、デザインの JSON、書き出し（DXF / STL / STEP）�
 | `hex_nut.py` | 六角ナット（買う部品） |
 | `shaft.py` | 丸棒シャフト（買う部品） |
 | `misumi_bracket.py` | ミスミのブラケット（買う部品）。HBLFSN5（2020用）・HBLFSN6-5（3030用）・HBLFSN8（40mm用）。STEP は `vendor/<型番>.stp` に置く |
+| `pkp213_motor.py` | オリエンタルモーターの 20mm 角ステッピングモーター PKP213D05A（買う部品）。STEP は `vendor/PKP213D05A.stp` に置く |
 
 ## メーカーの STEP を使う部品（`vendor/`）
 
