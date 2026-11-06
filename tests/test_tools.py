@@ -56,6 +56,15 @@ def test_bom_markdown_and_csv(stand_asm):
     assert json.dumps(b.to_dict(), ensure_ascii=False)
 
 
+def test_bom_lists_hardware():
+    from alucad import make
+
+    parts = [make("shaft", dia=8, length=100).named(f"s{i}") for i in range(2)] + [make("shaft", dia=8, length=150)]
+    b = bom(parts)
+    assert b.hardware == {("シャフト（丸棒）", "直径 8mm、長さ 100mm"): 2, ("シャフト（丸棒）", "直径 8mm、長さ 150mm"): 1}
+    assert "## 買う部品" in b.to_markdown() and "買う部品,シャフト（丸棒）" in b.to_csv()
+
+
 def test_cli_build_all(tmp_path, stand_asm):
     src = stand_asm.save(tmp_path / "stand.json")
     paths = build(src)

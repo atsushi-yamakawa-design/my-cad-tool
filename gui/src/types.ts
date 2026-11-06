@@ -72,6 +72,7 @@ export interface Bom {
   bolts: { size: string; length: number; qty: number }[];
   joints: { kind: string; size: string; profile: string; qty: number }[];
   prints: { label: string; filament: string; size: [number, number, number]; qty: number }[];
+  hardware: { label: string; spec: string; qty: number }[];
 }
 
 export interface WatchState {

@@ -98,7 +98,7 @@ class Part:
             p = loc * Location(a.pos)
             n = rot_only * Location(a.normal)
             out.append(
-                registry.Anchor(a.name, _t(p.position), _t(n.position), a.kind)
+                replace(a, pos=_t(p.position), normal=_t(n.position))
             )
         return out
 

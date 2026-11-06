@@ -7,8 +7,10 @@
     フレームの端面に当たる穴 → ボルト＋端面タップ加工
     相手のフレームがない穴   → ボルト＋ナット（板同士など）
   ボルトの長さは目安（板厚＋ねじ込み代を、よくある長さに切り上げ）。
-  3Dプリント部品は厚み t パラメータを持つもの（L字アングルなど）だけネジを数える。
+  3Dプリント部品は厚み t パラメータを持つもの（L字アングルなど）、買う部品は穴に厚み（Anchor.depth）を
+  書いてあるもの（ミスミのブラケットなど）だけネジを数える。
 - 3Dプリント部品: 同じ形ごとの個数
+- 買う部品（category "hardware"）: 種類とパラメータごとの個数
 """
 
 from __future__ import annotations
@@ -42,6 +44,7 @@ class Bom:
     bolts: Counter = field(default_factory=Counter)  # (サイズ, 長さ) → 本数
     joints: Counter = field(default_factory=Counter)  # (種類, サイズ, 断面 or "") → 個数
     prints: list = field(default_factory=list)  # [(ラベル, フィラメント, 幅, 奥行き, 高さ, 個数)]
+    hardware: Counter = field(default_factory=Counter)  # (品名, 仕様) → 個数
 
     def to_dict(self) -> dict:
         return {
@@ -58,6 +61,7 @@ class Bom:
             "prints": [
                 {"label": lb, "filament": f, "size": [w, d, h], "qty": n} for lb, f, w, d, h, n in self.prints
             ],
+            "hardware": [{"label": lb, "spec": sp, "qty": n} for (lb, sp), n in sorted(self.hardware.items())],
         }
 
     def to_markdown(self) -> str:
@@ -81,6 +85,10 @@ class Bom:
             out += ["## 3Dプリント部品", "", "| 部品 | フィラメント | 大きさ (mm) | 個数 |", "|---|---|---|---:|"]
             out += [f"| {lb} | {f} | {_num(w)} × {_num(d)} × {_num(h)} | {n} |" for lb, f, w, d, h, n in self.prints]
             out.append("")
+        if self.hardware:
+            out += ["## 買う部品", "", "| 品名 | 仕様 | 個数 |", "|---|---|---:|"]
+            out += [f"| {lb} | {sp} | {n} |" for (lb, sp), n in sorted(self.hardware.items())]
+            out.append("")
         if self.bolts or self.joints:
             out += ["## ネジ類（目安）", "", "| 品名 | サイズ | 本数・個数 |", "|---|---|---:|"]
             out += [f"| 六角穴付きボルト | {s}×{L} | {n} |" for (s, L), n in sorted(self.bolts.items())]
@@ -102,6 +110,8 @@ class Bom:
             w.writerow(["板", materials.get(m).label, f"{len(ps)}パーツ", f"{self.sheets.get(m, '')}シート"])
         for lb, f, x, y, z, n in self.prints:
             w.writerow(["3Dプリント", lb, f"{f} {_num(x)}×{_num(y)}×{_num(z)}mm", n])
+        for (lb, sp), n in sorted(self.hardware.items()):
+            w.writerow(["買う部品", lb, sp, n])
         for (s, L), n in sorted(self.bolts.items()):
             w.writerow(["ネジ", "六角穴付きボルト", f"{s}×{L}", n])
         for (k, s, p), n in sorted(self.joints.items()):
@@ -125,10 +135,9 @@ def bom(obj: Part | list[Part] | Assembly, gap: float = 3.0) -> Bom:
             bb = p.sketch()["cut"].bounding_box()
             b.plates[p.mat].append((p.name or p.type, round(bb.size.X, 2), round(bb.size.Y, 2)))
             by_mat[p.mat].append(p)
-        t = _thickness(p)
-        if t is None:
-            continue
-        for kind, size, prof in _hole_partners(p, frames, t):
+        if p.category == "hardware":
+            b.hardware[(registry.get(p.type).label, _spec(p))] += 1
+        for kind, size, prof, t in _hole_partners(p, frames, _thickness(p)):
             length = _bolt_length(t + GRIP[kind])
             b.bolts[(size, length)] += 1
             b.joints[(kind, size, prof)] += 1
@@ -166,13 +175,29 @@ def _thickness(p: Part) -> float | None:
     return None
 
 
-def _hole_partners(plate: Part, frames: list[Part], t: float):
-    """板（や3Dプリント部品）の各穴について、(種類, サイズ, 断面) を返す。"""
+def _spec(p: Part) -> str:
+    """買う部品の仕様（パラメータを「名前 値単位」で並べたもの）。"""
+    out = []
+    for d in registry.get(p.type).params:
+        v = p.params[d.name]
+        unit = d.unit if isinstance(v, (int, float)) and not isinstance(v, bool) else ""
+        out.append(f"{d.label or d.name} {_num(v) if unit else v}{unit}")
+    return "、".join(out) or "-"
+
+
+def _hole_partners(plate: Part, frames: list[Part], t_default: float | None):
+    """板（や3Dプリント部品・買う部品）の各穴について、(種類, サイズ, 断面, 厚み) を返す。厚みが分からない穴は飛ばす。"""
     for a in plate.geometry.anchors:
         if a.kind != "hole":
             continue
+        t = a.depth if a.depth is not None else t_default
+        if t is None:
+            continue
         idx = int(a.name.removeprefix("hole"))
-        size = plate.params["holes"][idx][2] if "holes" in plate.params else plate.params.get("size", "M5")
+        if a.size:
+            size = a.size
+        else:
+            size = plate.params["holes"][idx][2] if "holes" in plate.params else plate.params.get("size", "M5")
         size = size if isinstance(size, str) else f"φ{hole_dia(size)}"
         # 穴の軸上で、板の上下それぞれ 1mm 外側の点（ワールド座標）
         top = plate.location * Location(a.pos)
@@ -188,9 +213,9 @@ def _hole_partners(plate: Part, frames: list[Part], t: float):
                 fa = {x.name: x for x in f.anchors()}
                 d = Vector(*fa["end1"].pos) - Vector(*fa["end0"].pos)
                 parallel = abs(abs(d.normalized().dot(axis.normalized())) - 1) < 1e-6
-                hit = ("tap" if parallel else "tnut", size, f.params["profile"])
+                hit = ("tap" if parallel else "tnut", size, f.params["profile"], t)
                 break
-        yield hit or ("nut", size, "")
+        yield hit or ("nut", size, "", t)
 
 
 def _bolt_length(need: float) -> int:

@@ -22,8 +22,8 @@ MODELS: dict[str, tuple] = {
     "HBLFSN5": (
         Rot(0, 0, -90),
         [
-            Anchor("hole0", (18, 0, 4.5), (0, 0, 1), "hole"),
-            Anchor("hole1", (4.5, 0, 18), (1, 0, 0), "hole"),
+            Anchor("hole0", (18, 0, 4.5), (0, 0, 1), "hole", depth=4.5, size="M5"),
+            Anchor("hole1", (4.5, 0, 18), (1, 0, 0), "hole", depth=4.5, size="M5"),
             Anchor("floor", (15, 0, 0), (0, 0, -1), "face"),
             Anchor("wall", (0, 0, 15), (-1, 0, 0), "face"),
         ],
@@ -32,8 +32,8 @@ MODELS: dict[str, tuple] = {
     "HBLFSN6-5": (
         Rot(90, 0, 0),
         [
-            Anchor("hole0", (18, 0, 4.2), (0, 0, 1), "hole"),
-            Anchor("hole1", (4.5, 0, 15), (1, 0, 0), "hole"),
+            Anchor("hole0", (18, 0, 4.2), (0, 0, 1), "hole", depth=4.2, size="M5"),
+            Anchor("hole1", (4.5, 0, 15), (1, 0, 0), "hole", depth=4.5, size="M5"),
             Anchor("floor", (15, 0, 0), (0, 0, -1), "face"),
             Anchor("wall", (0, 0, 15), (-1, 0, 0), "face"),
         ],
@@ -42,8 +42,8 @@ MODELS: dict[str, tuple] = {
     "HBLFSN8": (
         Rot(0, 0, -90),
         [
-            Anchor("hole0", (20, 0, 9), (0, 0, 1), "hole"),
-            Anchor("hole1", (8.2, 0, 30), (1, 0, 0), "hole"),
+            Anchor("hole0", (20, 0, 9), (0, 0, 1), "hole", depth=9, size="M8"),
+            Anchor("hole1", (8.2, 0, 30), (1, 0, 0), "hole", depth=8.2, size="M8"),
             Anchor("floor", (21.5, 0, 0), (0, 0, -1), "face"),
             Anchor("wall", (0, 0, 21.5), (-1, 0, 0), "face"),
         ],

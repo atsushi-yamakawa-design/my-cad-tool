@@ -44,6 +44,10 @@ class Anchor:
     pos: tuple[float, float, float]
     normal: tuple[float, float, float]
     kind: str  # "end" | "face" | "hole" | "slot"
+    # 穴（kind "hole"）だけ: ボルトが通る厚み（mm）とネジのサイズ。部品表がボルトとTナットを数えるのに使う。
+    # 省略すると、板は板厚・3Dプリント部品は t パラメータ、サイズは holes / size パラメータ（なければ M5）
+    depth: float | None = None
+    size: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)

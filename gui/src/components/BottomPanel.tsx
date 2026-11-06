@@ -108,6 +108,20 @@ export function BottomPanel({ collapsed, onToggle }: { collapsed: boolean; onTog
                 </tbody>
               </table>
             )}
+            {bom.hardware.length > 0 && (
+              <table>
+                <caption>買う部品</caption>
+                <tbody>
+                  {bom.hardware.map((h, i) => (
+                    <tr key={i}>
+                      <td>{h.label}</td>
+                      <td>{h.spec}</td>
+                      <td className="r">× {h.qty}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
             {(bom.bolts.length > 0 || bom.joints.length > 0) && (
               <table>
                 <caption>ネジ類（目安）</caption>
