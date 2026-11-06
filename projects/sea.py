@@ -171,7 +171,8 @@ def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_m
     # 窓板：前の面（y=-d/2）に貼る。板のローカル Y を上（Z）、下面（ローカル z=0）をフレーム側に向ける
     win = make("sea_window", w=w, h=h, win_w=2 * xr - 2 * margin, win_h=paper_h - 2 * margin, mat=window_mat)
     win = win.at(0, -d / 2, zc).rot(90, 0, 0).named("window")
-    win = win.with_params(holes=frame_holes(win, frames))
+    # 留めるのは4つ角だけ（脚と上下の横桟が交わるところ。Tナットは脚の前の溝に入れる）
+    win = win.with_params(holes=[[sx * cx, sz * (h / 2 - s / 2), "M5"] for sx in (-1, 1) for sz in (-1, 1)])
     parts.append(win)
 
     return Geometry.kit(parts, anchors=[Anchor("top", (0, 0, h + tp), (0, 0, 1), "face")])
