@@ -15,6 +15,7 @@ import math
 
 from build123d import (
     Align,
+    Box,
     Circle,
     Cone,
     Cylinder,
@@ -38,6 +39,7 @@ AXLE = 8.0  # ローラーの軸の直径
 LIP_FLAT = 1.0  # ローラーの縁（つば）のまっすぐな部分の厚み
 PAPER_GAP = 1.0  # 紙の端と縁のすき間（片側）
 TAP_DRILL = {"M3": 2.5, "M4": 3.3}  # 止めネジの下穴（あとでタップを立てる）
+FLEX_PITCH, FLEX_SLIT = 2.5, 1.0  # カップリングの切れ込みの間隔と幅（横向きの切れ込み、立てて刷るとブリッジになる）
 # 脚と横桟の角に付けるミスミのブラケット（フレーム断面ごとの型番）。STEP が parts/vendor/ にあるときだけ使える
 BRACKET = {"2020": "HBLFSN5", "3030": "HBLFSN6-5"}
 _MB = REGISTRY.get("misumi_bracket")
@@ -72,12 +74,14 @@ MOTOR_HOLES = 16.0  # 取り付けねじ穴（M2）の間隔（正方形の4隅�
         Param("top_screw_z", float, 0.0, min=0, max=60, label="上の止めネジの位置（上の端から、0でハブの真ん中）"),
         Param("top_axle", float, 0.0, min=0, max=60, label="上のハブに軸が入る長さ（下の端から、0で入らない）"),
         Param("top_axle_screw", float, 0.0, min=0, max=60, label="その軸の止めネジの位置（上のハブの下の端から、0でなし）"),
+        Param("flex_slits", int, 0, min=0, max=8, label="軸とモーター軸の間の切れ込みの数（0でなし）"),
+        Param("flex_bridge", float, 3.0, min=1, max=10, label="切れ込みで残す橋の幅（細いほどやわらかい）"),
         FILAMENT,
     ],
 )
 def build_roller(
     dia, length, bore, clearance, lip, hub_dia, hub_len, set_screw, top_hub_len, top_bore, top_flat, top_screws, top_screw_z,
-    top_axle, top_axle_screw, filament,
+    top_axle, top_axle_screw, flex_slits, flex_bridge, filament,
 ) -> Geometry:
     """紙を掛ける筒。軸に通して使う。原点は下のハブの端面の中心、z=0 がベッド側（立てて刷る）。
 
@@ -87,6 +91,8 @@ def build_roller(
     上のハブだけ長さ・穴を変えて、モーターの軸とのカップリングにできる（D カットの平らな面は -Y 側。
     止めネジが2本なら、1本は平らな面に当たる -Y 向き、もう1本は +X 向き）。
     top_axle を付けると、上のハブの下側にも下から軸（bore）が入り、+Y 向きの止めネジで軸をつかめる。
+    flex_slits を付けると、軸の上の端のすぐ上（2.5mm ごと）に横向きの切れ込みを入れる。切れ込みは幅 flex_bridge の
+    橋を中心に通して残し、1段ごとに 90° 回す（スリット形のカップリング）。軸どうしの芯ずれやねじれを少し逃がせる。
     全長は hub_len + length + 上のハブの長さ。
     """
     top_hub = top_hub_len or hub_len
@@ -99,6 +105,11 @@ def build_roller(
         raise ValueError("sea_roller: 上のハブに軸が入る長さは、上のハブより短くしてください")
     if top_axle_screw and top_axle_screw > top_axle:
         raise ValueError("sea_roller: 軸の止めネジは、軸が入っている範囲に入れてください")
+    flex_len = flex_slits * FLEX_PITCH
+    if flex_slits and top_axle + flex_len > top_hub - (top_screw_z or top_hub / 2) - TAP_DRILL[set_screw] / 2 - 1:
+        raise ValueError("sea_roller: 切れ込みが上の止めネジにかかります（数を減らすか、上のハブを長くしてください）")
+    if flex_slits and flex_bridge >= hub_dia - 2:
+        raise ValueError("sea_roller: 切れ込みの橋の幅はハブの直径より細くしてください")
     if dia < bore + 2 * clearance + 3:
         raise ValueError("sea_roller: 直径は 軸＋3mm 以上にしてください")
     if hub_len > 0 and hub_dia < bore + 2 * clearance + 6:
@@ -138,6 +149,11 @@ def build_roller(
         f = top_flat + clearance  # -Y 側を平らに（y < -f を埋める）
         hole -= Pos(0, -f - rb) * Rectangle(2 * rb, 2 * rb)
     solid -= Pos(0, 0, top0 + top_axle) * extrude(hole, top_hub - top_axle)
+    if top_hub > 0:
+        for i in range(flex_slits):
+            cut = Box(hub_dia + 2, hub_dia + 2, FLEX_SLIT, align=CENTER_Z0) - Box(hub_dia + 2, flex_bridge, FLEX_SLIT, align=CENTER_Z0)
+            z = top0 + top_axle + (FLEX_PITCH - FLEX_SLIT) / 2 + i * FLEX_PITCH
+            solid -= Pos(0, 0, z) * Rot(0, 0, 90 * (i % 2)) * cut
     return Geometry(solid=solid, anchors=[Anchor("bottom", (0, 0, 0), (0, 0, -1), "face")])
 
 
@@ -226,9 +242,10 @@ def build_plate(w, d, r, span, axle_hole, hole_l, mat, holes) -> Geometry:
         Param("paper", bool, True, unit="", label="紙を表示する"),
         Param("brackets", bool, bool(BRACKET_MODELS), unit="", label="側面の下の角にブラケット"),
         Param("motor", bool, MOTOR_OK, unit="", label="左のローラーをモーターで回す"),
+        Param("flex_slits", int, 4, min=0, max=4, label="モーター側カップリングの切れ込みの数（0でなし）"),
     ],
 )
-def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_mat, paper, brackets, motor) -> Geometry:
+def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_mat, paper, brackets, motor, flex_slits) -> Geometry:
     """原点は底面（フレームの下面）の中心。-Y が前（窓）。"""
     s = profiles.get(profile).size
     r = roller_dia / 2
@@ -276,17 +293,20 @@ def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_m
             # 左のローラーは上のハブを天板の下 0.5mm まで伸ばし、モーターの軸（D カット）を止めネジ2本でつかむ。
             # Ø8 の軸は下から上のハブの中（モーターの軸の先の 3mm 手前）まで入れ、そのすぐ下を +Y 向きの止めネジでつかむ。
             # 軸の止めネジは上の横桟より下に置く（組み立てたあと、後ろから六角レンチが届くように）
+            # 軸の先とモーターの軸の先の間に切れ込み（flex_slits 段）を入れて、芯ずれ・ねじれを少し逃がす
             top0 = z_roll + hub + rl  # 上のハブの下端
             top_hub = h - 0.5 - top0
             shaft_tip = h + tp - MOTOR_SHAFT_LEN  # モーターの軸の先
             grip = h - 0.5 - shaft_tip  # モーターの軸がハブに入る長さ
-            top_axle = shaft_tip - 2 - top0  # 軸の穴はモーターの軸の先の 2mm 手前まで
+            top_axle = shaft_tip - 2 - flex_slits * FLEX_PITCH - top0  # 軸の穴は切れ込みの下まで
             axle_screw = min(top_axle - 3, h - s - 2 - TAP_DRILL["M3"] / 2 - top0)
+            if axle_screw < 3:
+                raise ValueError("sea_box: 軸の入る長さが足りません（切れ込みの数を減らしてください）")
             roller = roller.with_params(
                 top_hub_len=top_hub, top_bore=MOTOR_SHAFT, top_flat=MOTOR_FLAT, top_screws=2, top_screw_z=grip / 2,
-                top_axle=top_axle, top_axle_screw=axle_screw,
+                top_axle=top_axle, top_axle_screw=axle_screw, flex_slits=flex_slits,
             )
-            axle_top = shaft_tip - 3
+            axle_top = top0 + top_axle - 1
         parts.append(make("shaft", dia=AXLE, length=axle_top + tp + 2).at(sx * xr, 0, -tp - 2).named(f"axle_{tag}"))
         parts.append(roller.at(sx * xr, 0, z_roll).named(f"roller_{tag}"))
     if motor:
