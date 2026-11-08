@@ -1,16 +1,17 @@
-// 上のツールバー: デザインの切り替え・保存・Undo/Redo・書き出し・チェック結果
+// 上のツールバー: デザインの切り替え・Undo/Redo・書き出し・チェック結果（保存は自動）
 
 import { useEffect, useRef, useState } from "react";
-import { SNAP_CHOICES, useStore } from "../store";
+import { SNAP_CHOICES, flushSave, useStore } from "../store";
 import { useTheme, type ThemePref } from "../theme";
 
 export function Toolbar() {
   const { designs, name, dirty, past, future, issues, tool, snap } = useStore();
-  const { openDesign, newDesign, setName, save, build, undo, redo, setTool, setSnap } = useStore.getState();
+  const { openDesign, newDesign, setName, build, undo, redo, setTool, setSnap } = useStore.getState();
   const [draft, setDraft] = useState(name);
   useEffect(() => setDraft(name), [name]);
 
-  const confirmDiscard = () => !dirty || window.confirm("保存していない変更があります。破棄しますか？");
+  // 別のデザインに移る前に、待っている自動保存を済ませる。保存できない（名前のない新規など）ときだけ確認する
+  const leave = async () => (await flushSave()) || window.confirm("保存していない変更があります。破棄しますか？");
   const errors = issues.filter((i) => i.level === "error").length;
   const warnings = issues.length - errors;
 
@@ -20,7 +21,10 @@ export function Toolbar() {
 
       <select
         value={designs.includes(name) ? name : ""}
-        onChange={(e) => e.target.value && confirmDiscard() && openDesign(e.target.value)}
+        onChange={async (e) => {
+          const next = e.target.value;
+          if (next && (await leave())) await openDesign(next);
+        }}
         title="designs/ のデザインを開く"
       >
         <option value="">開く…</option>
@@ -30,7 +34,7 @@ export function Toolbar() {
           </option>
         ))}
       </select>
-      <button onClick={() => confirmDiscard() && newDesign()}>新規</button>
+      <button onClick={async () => (await leave()) && newDesign()}>新規</button>
 
       <span className="sep" />
       <input
@@ -41,12 +45,12 @@ export function Toolbar() {
         onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
         title="デザイン名（designs/<名前>.json に保存）"
       />
-      <span className={`dirty ${dirty ? "on" : ""}`} title="未保存の変更">
+      <span
+        className={`dirty ${dirty ? "on" : ""}`}
+        title={name === "untitled" ? "名前を付けると自動で保存します" : "保存待ちの変更（自動で保存します）"}
+      >
         ●
       </span>
-      <button onClick={save} title="保存（⌘S）">
-        保存
-      </button>
 
       <span className="sep" />
       <button onClick={undo} disabled={!past.length} title="元に戻す（⌘Z）">
@@ -77,7 +81,7 @@ export function Toolbar() {
       <span className={`check-badge ${errors ? "error" : warnings ? "warning" : "ok"}`} title="加工前チェック">
         {errors ? `エラー ${errors}` : warnings ? `注意 ${warnings}` : "チェックOK"}
       </span>
-      <button className="primary" onClick={build} title="保存して DXF / STEP / GLB / 部品表 を designs/out/ に書き出す">
+      <button className="primary" onClick={build} title="保存して DXF / STL / STEP / GLB / 部品表 を書き出す（書き出し先は alucad.local.toml の [out_dirs]、なければ designs/out/）">
         書き出し
       </button>
       <Settings />

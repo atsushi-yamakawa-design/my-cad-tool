@@ -99,7 +99,7 @@ interface State {
   openDesign: (name: string) => Promise<void>;
   newDesign: () => void;
   setName: (name: string) => void;
-  save: () => Promise<boolean>;
+  save: (quiet?: boolean) => Promise<boolean>;
   build: () => Promise<void>;
 
   commit: (asm: AssemblySpec) => void;
@@ -136,7 +136,10 @@ async function confirmOverwrite(): Promise<boolean> {
   if (stamp) return true; // 開いたファイルへの保存。外での変更は版の印（409）で守られている
   const { designs } = await api.designs();
   useStore.setState({ designs });
-  return !designs.includes(name) || window.confirm(`${name}.json はすでにあります。上書きしますか？`);
+  if (!designs.includes(name) || window.confirm(`${name}.json はすでにあります。上書きしますか？`)) return true;
+  declinedName = name; // 断った名前は、名前を変えるまで自動保存しない
+  useStore.getState().notify("別の名前にすると自動で保存します", "error");
+  return false;
 }
 
 export const useStore = create<State>((set, get) => ({
@@ -212,8 +215,9 @@ export const useStore = create<State>((set, get) => ({
     }
     set({ partsStamp: w.parts });
 
-    // 開いているデザインのファイルが外で書き換わった
-    if (s.stamp && w.design && w.design !== s.stamp && !s.conflict) {
+    // 開いているデザインのファイルが外で書き換わった（保存中は自分の書き込みなので見ない）
+    if (inFlight || get().name !== s.name) return;
+    if (s.stamp && w.design && w.design !== get().stamp && !s.conflict) {
       if (s.dirty) await get().mergeFromDisk();
       else {
         await get().reloadFromDisk();
@@ -280,7 +284,7 @@ export const useStore = create<State>((set, get) => ({
   // 名前を変えると別のファイルになるので、版の印はリセット
   setName: (name) => set({ name, dirty: true, stamp: null, base: null, conflict: null }),
 
-  save: async () => {
+  save: async (quiet = false) => {
     const { name } = get();
     if (!NAME_RE.test(name)) {
       get().notify("デザイン名に使えるのは英数字・_・- だけです", "error");
@@ -292,7 +296,7 @@ export const useStore = create<State>((set, get) => ({
       if (!res) return false;
       const { designs } = await api.designs();
       set({ designs });
-      get().notify(`保存しました: designs/${name}.json`);
+      if (!quiet) get().notify(`保存しました: designs/${name}.json`);
       return true;
     } catch (e) {
       get().notify((e as Error).message, "error");
@@ -584,6 +588,7 @@ export const useStore = create<State>((set, get) => ({
 async function withMerge<T extends { stamp: string; assembly: AssemblySpec }>(send: () => Promise<T>): Promise<T | null> {
   for (let attempt = 0; ; attempt++) {
     const sent = useStore.getState().asm;
+    inFlight++;
     try {
       const res = await send();
       // 保存した内容（サーバーで整えたもの）を基準にする。保存中に画面で変えていたらそちらを残す
@@ -599,8 +604,49 @@ async function withMerge<T extends { stamp: string; assembly: AssemblySpec }>(se
     } catch (e) {
       if (!(e instanceof ApiError && e.status === 409) || attempt > 0) throw e;
       if (!(await useStore.getState().mergeFromDisk())) return null;
+    } finally {
+      inFlight--;
     }
   }
+}
+
+// ---- 自動保存 ----
+// 変更が止まってから AUTOSAVE_MS 後に保存する。新規（untitled）は名前を付けるまで、
+// 外部の変更との衝突の確認中と、上書きを断った名前のあいだは保存しない
+const AUTOSAVE_MS = 800;
+let inFlight = 0; // 保存・書き出しの送信中の数（そのあいだはファイルの変化を外部の変更とみなさない）
+let declinedName: string | null = null;
+let autosaveTimer = 0;
+let autosaving: Promise<boolean> | null = null;
+
+function canAutosave(s: State): boolean {
+  return s.dirty && !s.conflict && s.name !== "untitled" && NAME_RE.test(s.name) && s.name !== declinedName;
+}
+
+async function autosave(): Promise<boolean> {
+  window.clearTimeout(autosaveTimer);
+  while (autosaving) await autosaving; // 前の保存が終わってから（その間の変更もまとめて保存する）
+  if (!canAutosave(useStore.getState())) return !useStore.getState().dirty;
+  autosaving = useStore.getState().save(true);
+  try {
+    return await autosaving;
+  } finally {
+    autosaving = null;
+  }
+}
+
+useStore.subscribe((s, prev) => {
+  if (s.name !== prev.name && s.name !== declinedName) declinedName = null;
+  if (s.asm === prev.asm && s.dirty === prev.dirty && s.conflict === prev.conflict && s.name === prev.name) return;
+  window.clearTimeout(autosaveTimer);
+  if (canAutosave(s)) autosaveTimer = window.setTimeout(() => void autosave(), AUTOSAVE_MS);
+});
+
+/** 待っている自動保存をすぐ済ませる（別のデザインを開く前など）。保存し終えて変更が残っていなければ true */
+export async function flushSave(): Promise<boolean> {
+  if (!useStore.getState().dirty) return true;
+  await autosave();
+  return !useStore.getState().dirty;
 }
 
 export function componentDef(type: string) {
