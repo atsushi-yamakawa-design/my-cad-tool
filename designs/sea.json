@@ -17,7 +17,11 @@
         "margin": 10.0,
         "plate_mat": "acrylic3",
         "window_mat": "acrylic3",
-        "paper": true
+        "paper": true,
+        "brackets": true,
+        "motor": true,
+        "flex_slits": 4,
+        "front_gap": 2.0
       },
       "pos": [
         0.0,
