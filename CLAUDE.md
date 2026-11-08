@@ -77,11 +77,20 @@ uv run alucad part frame_foot --set depth=12 --set size=M4 --png out/foot.png --
 
 ### 4. デザイン全体を書き出す
 ```bash
-uv run alucad build designs/stand.json        # designs/out/ に DXF・STL・STEP・GLB・部品表・プレビュー
+uv run alucad build designs/stand.json        # DXF・STL・STEP・GLB・部品表・プレビュー（書き出し先は下のルール）
 uv run alucad build designs/stand.json --only stl,png
 ```
-書き出し先は、リポジトリ直下の `alucad.local.toml`（git に入れない）に `out_dir` があれば `<out_dir>/<デザイン名>/`（持ち主の Google Drive の cad-data）、なければ `designs/out/`。
+書き出し先は、リポジトリ直下の `alucad.local.toml`（git に入れない）の `[out_dirs]` にデザイン名があればそのフォルダ、なければ `designs/out/`。
 build は最初に加工前チェックをして、エラーがあれば止まる（`--force` で無視）。
+
+### 書き出し先のルール（持ち主が人の手で使うファイル）
+- **プリント・カットするもの、持ち主が開いていじるもの**（DXF・STL・STEP・部品表など）は、持ち主の Google Drive の
+  **「プロト・実験」フォルダの中のプロジェクトのフォルダ**（例: `2026_sea`）か、持ち主が指定したフォルダに書き出す
+- **Drive の `cad-data` には書き出さない。** cad-data は AI やソフトが読みに行く場所（メーカーの STEP の `cad-data/vendor/` など）
+- デザインの build は `alucad.local.toml` の `[out_dirs]` で決まる。部品単体（`alucad part`）やテストの書き出しは `--stl` / `--out` などでそのフォルダを指定する
+- **書き出し先のフォルダがまだないときは、勝手に決めない。** 「プロト・実験に `2026_<名前>` を作ってよいか」を持ち主に確認してから作り、
+  デザインなら `[out_dirs]` に足す（ほかの場所がよければそれに従う）
+- Drive のパスはメールアドレスを含むので、`alucad.local.toml` 以外（コードやドキュメント）には書かない
 
 ## 作ったら必ず確認する（この順で）
 

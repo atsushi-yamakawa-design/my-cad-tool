@@ -1,7 +1,7 @@
 """コマンドライン: JSON（アセンブリ）から全部書き出す。
 
   uv run alucad build designs/stand.json            → designs/out/ に DXF・STL・STEP・GLB・部品表
-                                                    （alucad.local.toml の out_dir があれば <out_dir>/stand/）
+                                                    （alucad.local.toml の [out_dirs] に stand があればそこ）
   uv run alucad build designs/stand.json -o dist    → 出力先を指定
   uv run alucad build designs/stand.json --only dxf,bom
   uv run alucad check designs/stand.json            → 加工前チェックだけ
@@ -31,15 +31,17 @@ LOCAL_CONFIG = REPO / "alucad.local.toml"  # この PC だけの設定（git に
 def default_out_dir(json_path: str | Path) -> Path:
     """-o を省略したときの書き出し先。
 
-    リポジトリの designs/ にあるデザインで、alucad.local.toml に out_dir があれば <out_dir>/<デザイン名>/。
-    それ以外は JSON と同じ場所の out/
+    リポジトリの designs/ にあるデザインは、alucad.local.toml の [out_dirs] にデザイン名があればそのフォルダ、
+    なければ out_dir があれば <out_dir>/<デザイン名>/。それ以外は JSON と同じ場所の out/
     """
     json_path = Path(json_path).resolve()
     if json_path.parent == REPO / "designs" and LOCAL_CONFIG.exists():
         import tomllib
 
-        out_dir = tomllib.loads(LOCAL_CONFIG.read_text(encoding="utf-8")).get("out_dir")
-        if out_dir:
+        config = tomllib.loads(LOCAL_CONFIG.read_text(encoding="utf-8"))
+        if out := config.get("out_dirs", {}).get(json_path.stem):
+            return Path(out).expanduser()
+        if out_dir := config.get("out_dir"):
             return Path(out_dir).expanduser() / json_path.stem
     return json_path.parent / "out"
 
@@ -78,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
 
     b = sub.add_parser("build", help="JSONから DXF / STL / STEP / GLB / 部品表 を書き出す")
     b.add_argument("json", help="アセンブリのJSONファイル")
-    b.add_argument("-o", "--out", help="出力フォルダ（省略時は JSON と同じ場所の out/。alucad.local.toml の out_dir があればそこ）")
+    b.add_argument("-o", "--out", help="出力フォルダ（省略時は JSON と同じ場所の out/。alucad.local.toml の [out_dirs] / out_dir があればそこ）")
     b.add_argument("--only", default=",".join(FORMATS), help=f"書き出す形式（カンマ区切り。{','.join(FORMATS)}）")
     b.add_argument("--no-kerf", action="store_true", help="カーフ補正をしない（設計寸法のまま）")
     b.add_argument("--gap", type=float, default=3.0, help="DXFでパーツ同士を空ける間隔 mm（既定 3）")

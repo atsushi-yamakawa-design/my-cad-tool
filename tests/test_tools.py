@@ -86,6 +86,12 @@ def test_default_out_dir(tmp_path, monkeypatch):
     assert cli.default_out_dir(repo / "designs" / "sea.json") == repo / "designs" / "out"
     cli.LOCAL_CONFIG.write_text(f'out_dir = "{tmp_path / "drive"}"\n', encoding="utf-8")
     assert cli.default_out_dir(repo / "designs" / "sea.json") == tmp_path / "drive" / "sea"
+    # [out_dirs] にデザイン名があれば、out_dir よりそちらを使う
+    cli.LOCAL_CONFIG.write_text(
+        f'out_dir = "{tmp_path / "drive"}"\n[out_dirs]\nsea = "{tmp_path / "proto" / "2026_sea"}"\n', encoding="utf-8"
+    )
+    assert cli.default_out_dir(repo / "designs" / "sea.json") == tmp_path / "proto" / "2026_sea"
+    assert cli.default_out_dir(repo / "designs" / "stand.json") == tmp_path / "drive" / "stand"
     # designs/ 以外（テストや examples）はこれまで通り JSON の隣の out/
     assert cli.default_out_dir(tmp_path / "x.json") == tmp_path / "out"
 
