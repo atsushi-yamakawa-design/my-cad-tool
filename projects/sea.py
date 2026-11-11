@@ -46,9 +46,10 @@ LIP_FLAT = 1.0  # ローラーの縁（つば）のまっすぐな部分の厚�
 PAPER_GAP = 1.0  # 紙の端と縁のすき間（片側）
 TAP_DRILL = {"M3": 2.5, "M4": 3.3}  # 止めネジの下穴（あとでタップを立てる）
 FLEX_PITCH, FLEX_SLIT = 2.5, 1.0  # カップリングの切れ込みの間隔と幅（横向きの切れ込み、立てて刷ると天井は両端の支えがあるブリッジ）
-# 軸受け：フランジ付きベアリング（型番 → 内径, 外径, 幅, つばの外径, つばの厚み）
-BEARINGS = {"F608ZZ": (8.0, 22.0, 7.0, 25.0, 1.5)}
+# 軸受け：フランジ付きベアリング（parts/flange_bearing.py）。寸法はその部品から読む
 BEARING = "F608ZZ"
+_FB = REGISTRY.get("flange_bearing")
+BEARING_MODELS = tuple(_FB.params[0].choices) if _FB else (BEARING,)
 BEARING_HOLE = 22.1  # 板の穴（レーザーはカーフ補正で穴が正しい大きさに出る。きつければ 22.2）
 RING_T = 3.0  # 押さえリングの厚み
 RING_ID = 20.0  # 押さえリングの穴（外輪の面だけを押さえ、回る内輪と蓋には触れない）
@@ -58,9 +59,9 @@ RING_SCREW = "M3"
 RING_SCREW_R = 16.0  # 押さえリングのネジの半径（中心から）
 RING_SCREW_ANGLES = (90.0, 210.0, 330.0)  # +X から反時計回り。前（-Y）は横桟が近いので、前にはネジを置かない
 RING_HEAD = 2.75  # M3 のボルトの頭の半径（リングの縁との間隔チェック用）
-# 軸の重さを受けるワッシャー（内輪だけに当たる外径）とセットカラー（uxcell 8×14、幅は実物を測って直す）
-WASHER = (8.0, 12.0, 1.0)  # 内径, 外径, 厚み
-COLLAR = (8.0, 14.0, 8.0)  # 内径, 外径, 幅
+# 軸の重さを受けるワッシャー（内輪だけに当たる外径）とセットカラー（uxcell 8×14、幅は実物を測って直す）。parts/washer.py・parts/shaft_collar.py
+WASHER = {"d": AXLE, "od": 12.0, "t": 1.0}
+COLLAR = {"bore": AXLE, "od": 14.0, "width": 8.0}
 # 脚と横桟の角に付けるミスミのブラケット（フレーム断面ごとの型番）。STEP が parts/vendor/ にあるときだけ使える
 BRACKET = {"2020": "HBLFSN5", "3030": "HBLFSN6-5"}
 _MB = REGISTRY.get("misumi_bracket")
@@ -225,55 +226,14 @@ def build_window(w, h, win_w, win_h, win_r, mat, holes) -> Geometry:
     return flat.flat_geometry(Rectangle(w, h) - window, mat, holes, name="sea_window")
 
 
-@component(
-    "flange_bearing",
-    label="フランジ付きベアリング",
-    category="hardware",
-    params=[Param("model", str, BEARING, unit="", choices=tuple(BEARINGS), label="型番")],
-)
-def build_bearing(model) -> Geometry:
-    """原点はつばの下面（板に乗る面）の中心。つばは +Z 側（z=0〜つばの厚み）、本体は -Z へ伸びる。
-    内輪・外輪の上面はつばの上面と同じ高さ。"""
-    d, D, B, fd, ft = BEARINGS[model]
-    solid = Pos(0, 0, ft - B) * Cylinder(D / 2, B, align=CENTER_Z0) + Cylinder(fd / 2, ft, align=CENTER_Z0)
-    solid -= Pos(0, 0, ft - B) * Cylinder(d / 2, B, align=CENTER_Z0)
-    return Geometry(solid=solid, anchors=[Anchor("seat", (0, 0, 0), (0, 0, -1), "face"), Anchor("top", (0, 0, ft), (0, 0, 1), "face")])
-
-
-@component(
-    "shaft_collar",
-    label="セットカラー",
-    category="hardware",
-    params=[
-        Param("bore", float, COLLAR[0], min=2, max=50, label="内径"),
-        Param("od", float, COLLAR[1], min=4, max=80, label="外径"),
-        Param("width", float, COLLAR[2], min=2, max=40, label="幅"),
-    ],
-)
-def build_collar(bore, od, width) -> Geometry:
-    """軸に止めネジで留める輪。原点は下面の中心。"""
-    if od <= bore + 2:
-        raise ValueError("shaft_collar: 外径は内径＋2mm 以上にしてください")
-    solid = Cylinder(od / 2, width, align=CENTER_Z0) - Cylinder(bore / 2, width, align=CENTER_Z0)
-    return Geometry(solid=solid, anchors=[Anchor("bottom", (0, 0, 0), (0, 0, -1), "face")])
-
-
-@component(
-    "washer",
-    label="ワッシャー",
-    category="hardware",
-    params=[
-        Param("d", float, WASHER[0], min=1, max=50, label="内径"),
-        Param("od", float, WASHER[1], min=2, max=80, label="外径"),
-        Param("t", float, WASHER[2], min=0.1, max=10, label="厚み"),
-    ],
-)
-def build_washer(d, od, t) -> Geometry:
-    """原点は下面の中心。"""
-    if od <= d:
-        raise ValueError("washer: 外径は内径より大きくしてください")
-    solid = Cylinder(od / 2, t, align=CENTER_Z0) - Cylinder(d / 2, t, align=CENTER_Z0)
-    return Geometry(solid=solid, anchors=[Anchor("bottom", (0, 0, 0), (0, 0, -1), "face")])
+def bearing_dims(model: str) -> tuple[float, float, float]:
+    """parts/flange_bearing.py の部品から (つばの外径, つばの厚み, 幅) を読む。"""
+    if "flange_bearing" not in REGISTRY:
+        raise ValueError("sea: parts/flange_bearing.py がありません")
+    p = make("flange_bearing", model=model)
+    a = {x.name: x for x in p.anchors()}
+    ft = a["top"].pos[2]
+    return p.solid().bounding_box().size.X, ft, ft - a["bottom"].pos[2]
 
 
 def ring_screws() -> list[tuple[float, float]]:
@@ -286,7 +246,7 @@ def ring_screws() -> list[tuple[float, float]]:
     label="sea ベアリング押さえ",
     category="print",
     params=[
-        Param("model", str, BEARING, unit="", choices=tuple(BEARINGS), label="ベアリングの型番"),
+        Param("model", str, BEARING, unit="", choices=BEARING_MODELS, label="ベアリングの型番"),
         Param("t", float, RING_T, min=2, max=10, label="厚み"),
         Param("clip_x", float, 17.5, min=10, max=40, label="左右を平らに切る位置（中心から）"),
         Param("clip_front", float, 13.5, min=10, max=40, label="前を平らに切る位置（中心から）"),
@@ -299,7 +259,7 @@ def build_bearing_ring(model, t, clip_x, clip_front, plate_t, clearance, filamen
     """板の穴に落としたフランジ付きベアリングのつばを上からかぶせて押さえる輪。M3 で板に締める。
     原点は下面（板の側・z=0 がプリンタのベッド）の中心。下面につばが入るくぼみ（深さ＝つば − 押さえしろ）。
     くぼみの天井は幅 3mm ほどの輪のブリッジなので、サポートなしで刷れる。左右の横桟・前の横桟に当たらないよう平らに切る。"""
-    _, _, _, fd, ft = BEARINGS[model]
+    fd, ft, _ = bearing_dims(model)
     rec_r, rec_h = fd / 2 + clearance, ft - RING_PRESS
     if t < rec_h + 1:
         raise ValueError("sea_bearing_ring: 厚みは つばの厚み＋1mm 以上にしてください")
@@ -401,7 +361,7 @@ def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_m
     # 天板・底板は材料を減らすため、左右の端（脚・横の横桟と、軸・モーターが乗るところ）だけの4枚にする。
     # 前後の横桟には端の近くの穴だけで留める（真ん中は板なし）
     tp = materials.get(plate_mat).t
-    _, _, bw, _, ft = BEARINGS[BEARING]
+    _, ft, bw = bearing_dims(BEARING)
     # ベアリング押さえは、横の横桟（軸から r+8）と前の横桟（軸から r+lip+front_gap）の 0.5mm 手前で平らに切る
     ring = make("sea_bearing_ring", clip_x=r + 8 - 0.5, clip_front=r + lip + front_gap - 0.5, plate_t=tp)
     reach = max(PLATE_REACH, ring.params["clip_x"] + 1.5)  # 押さえが板に乗りきる幅
@@ -463,8 +423,8 @@ def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_m
         parts.append(ring.at(x, yr, z + RING_PRESS).named(f"bearing_ring_{tag}"))
         if tag.endswith("_bottom"):
             side = tag.removesuffix("_bottom")
-            parts.append(make("washer").at(x, yr, z + ft).named(f"washer_{side}"))
-            parts.append(make("shaft_collar").at(x, yr, z + ft + WASHER[2]).named(f"collar_{side}"))
+            parts.append(make("washer", **WASHER).at(x, yr, z + ft).named(f"washer_{side}"))
+            parts.append(make("shaft_collar", **COLLAR).at(x, yr, z + ft + WASHER["t"]).named(f"collar_{side}"))
     if motor:
         if not MOTOR_OK:
             raise ValueError("sea_box: モーターの STEP がありません（PKP213D05A.stp を parts/vendor/ に置くか、モーターを外してください）")
