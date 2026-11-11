@@ -4,6 +4,11 @@
 - 2020 フレームの箱（脚4本、上下の横桟 各4本）
 - 天板・底板（sea_plate、レーザー）：上下とも左右の端だけの板（計4枚、真ん中はなし）。ローラーの軸を通す穴と、フレームに留める穴
 - ローラー2本：軸（Ø8 シャフト）＋ 3Dプリントの筒（sea_roller、両端に紙ずれ止めの縁と、軸に止めネジで留めるハブ）。片方の軸を天板の上に出して、つまみかモーターで回す
+- 軸受け：フランジ付きベアリング F608ZZ を板の穴に落とし込み、3Dプリントの押さえリング（sea_bearing_ring）を M3 で締めて留める。
+  左の下・右の上・右の下の3か所（左の上はモーター自身の軸受けが受ける）。ガタのある Ø9 の穴だと 2本の軸が平行にならず、紙が少しずつ上下にずれていくため
+- 軸の重さ：下のベアリングの上にワッシャー＋セットカラーを載せて受ける（モーターの軸に重さを吊るさない）
+  組み立て順：底板・ベアリング・押さえリング・軸・ワッシャー・カラーを机の上で先に組んでカラーを締める（箱に付けたあとは下の横桟に隠れて六角レンチが届かない）
+  → 底板をフレームに付ける → ローラーを上から通して止めネジ → 天板（左はモーターも）を付けて、最後にモーター側の上のハブを締める
 - 紙のループ（sea_paper）：2本のローラーに掛けた輪。前側の直線部分が窓から見える
 - 前の窓板（sea_window、レーザー）：紙の前に開けた四角い窓
 - モーター（parts/pkp213_motor.py、オリエンタル PKP213D05A）：天板の上に下向きに付け、左のローラーの上のハブ（カップリング）を回す
@@ -28,6 +33,7 @@ from build123d import (
 )
 
 from alucad import flat, frame, materials, profiles
+from alucad.holes import hole_dia
 from alucad.mounting import frame_holes
 from alucad.part import make
 from alucad.printed import FILAMENT
@@ -40,6 +46,21 @@ LIP_FLAT = 1.0  # ローラーの縁（つば）のまっすぐな部分の厚�
 PAPER_GAP = 1.0  # 紙の端と縁のすき間（片側）
 TAP_DRILL = {"M3": 2.5, "M4": 3.3}  # 止めネジの下穴（あとでタップを立てる）
 FLEX_PITCH, FLEX_SLIT = 2.5, 1.0  # カップリングの切れ込みの間隔と幅（横向きの切れ込み、立てて刷ると天井は両端の支えがあるブリッジ）
+# 軸受け：フランジ付きベアリング（型番 → 内径, 外径, 幅, つばの外径, つばの厚み）
+BEARINGS = {"F608ZZ": (8.0, 22.0, 7.0, 25.0, 1.5)}
+BEARING = "F608ZZ"
+BEARING_HOLE = 22.1  # 板の穴（レーザーはカーフ補正で穴が正しい大きさに出る。きつければ 22.2）
+RING_T = 3.0  # 押さえリングの厚み
+RING_ID = 20.0  # 押さえリングの穴（外輪の面だけを押さえ、回る内輪と蓋には触れない）
+RING_R = 19.5  # 押さえリングの外形の半径（横桟に当たるところは平らに切る）
+RING_PRESS = 0.2  # 押さえしろ：リングのくぼみはつばより 0.2mm 浅く、ネジを締めるとつばを板に押しつける
+RING_SCREW = "M3"
+RING_SCREW_R = 16.0  # 押さえリングのネジの半径（中心から）
+RING_SCREW_ANGLES = (90.0, 210.0, 330.0)  # +X から反時計回り。前（-Y）は横桟が近いので、前にはネジを置かない
+RING_HEAD = 2.75  # M3 のボルトの頭の半径（リングの縁との間隔チェック用）
+# 軸の重さを受けるワッシャー（内輪だけに当たる外径）とセットカラー（uxcell 8×14、幅は実物を測って直す）
+WASHER = (8.0, 12.0, 1.0)  # 内径, 外径, 厚み
+COLLAR = (8.0, 14.0, 8.0)  # 内径, 外径, 幅
 # 脚と横桟の角に付けるミスミのブラケット（フレーム断面ごとの型番）。STEP が parts/vendor/ にあるときだけ使える
 BRACKET = {"2020": "HBLFSN5", "3030": "HBLFSN6-5"}
 _MB = REGISTRY.get("misumi_bracket")
@@ -205,6 +226,101 @@ def build_window(w, h, win_w, win_h, win_r, mat, holes) -> Geometry:
 
 
 @component(
+    "flange_bearing",
+    label="フランジ付きベアリング",
+    category="hardware",
+    params=[Param("model", str, BEARING, unit="", choices=tuple(BEARINGS), label="型番")],
+)
+def build_bearing(model) -> Geometry:
+    """原点はつばの下面（板に乗る面）の中心。つばは +Z 側（z=0〜つばの厚み）、本体は -Z へ伸びる。
+    内輪・外輪の上面はつばの上面と同じ高さ。"""
+    d, D, B, fd, ft = BEARINGS[model]
+    solid = Pos(0, 0, ft - B) * Cylinder(D / 2, B, align=CENTER_Z0) + Cylinder(fd / 2, ft, align=CENTER_Z0)
+    solid -= Pos(0, 0, ft - B) * Cylinder(d / 2, B, align=CENTER_Z0)
+    return Geometry(solid=solid, anchors=[Anchor("seat", (0, 0, 0), (0, 0, -1), "face"), Anchor("top", (0, 0, ft), (0, 0, 1), "face")])
+
+
+@component(
+    "shaft_collar",
+    label="セットカラー",
+    category="hardware",
+    params=[
+        Param("bore", float, COLLAR[0], min=2, max=50, label="内径"),
+        Param("od", float, COLLAR[1], min=4, max=80, label="外径"),
+        Param("width", float, COLLAR[2], min=2, max=40, label="幅"),
+    ],
+)
+def build_collar(bore, od, width) -> Geometry:
+    """軸に止めネジで留める輪。原点は下面の中心。"""
+    if od <= bore + 2:
+        raise ValueError("shaft_collar: 外径は内径＋2mm 以上にしてください")
+    solid = Cylinder(od / 2, width, align=CENTER_Z0) - Cylinder(bore / 2, width, align=CENTER_Z0)
+    return Geometry(solid=solid, anchors=[Anchor("bottom", (0, 0, 0), (0, 0, -1), "face")])
+
+
+@component(
+    "washer",
+    label="ワッシャー",
+    category="hardware",
+    params=[
+        Param("d", float, WASHER[0], min=1, max=50, label="内径"),
+        Param("od", float, WASHER[1], min=2, max=80, label="外径"),
+        Param("t", float, WASHER[2], min=0.1, max=10, label="厚み"),
+    ],
+)
+def build_washer(d, od, t) -> Geometry:
+    """原点は下面の中心。"""
+    if od <= d:
+        raise ValueError("washer: 外径は内径より大きくしてください")
+    solid = Cylinder(od / 2, t, align=CENTER_Z0) - Cylinder(d / 2, t, align=CENTER_Z0)
+    return Geometry(solid=solid, anchors=[Anchor("bottom", (0, 0, 0), (0, 0, -1), "face")])
+
+
+def ring_screws() -> list[tuple[float, float]]:
+    """押さえリングのネジの位置（ベアリングの中心から、X と Y の向きは箱と同じ）。"""
+    return [(RING_SCREW_R * math.cos(math.radians(a)), RING_SCREW_R * math.sin(math.radians(a))) for a in RING_SCREW_ANGLES]
+
+
+@component(
+    "sea_bearing_ring",
+    label="sea ベアリング押さえ",
+    category="print",
+    params=[
+        Param("model", str, BEARING, unit="", choices=tuple(BEARINGS), label="ベアリングの型番"),
+        Param("t", float, RING_T, min=2, max=10, label="厚み"),
+        Param("clip_x", float, 17.5, min=10, max=40, label="左右を平らに切る位置（中心から）"),
+        Param("clip_front", float, 13.5, min=10, max=40, label="前を平らに切る位置（中心から）"),
+        Param("plate_t", float, 3.0, min=1, max=20, label="留める板の厚み（ボルトの長さ用）"),
+        Param("clearance", float, 0.2, min=0, max=1, label="つばとのすき間（片側）"),
+        FILAMENT,
+    ],
+)
+def build_bearing_ring(model, t, clip_x, clip_front, plate_t, clearance, filament) -> Geometry:
+    """板の穴に落としたフランジ付きベアリングのつばを上からかぶせて押さえる輪。M3 で板に締める。
+    原点は下面（板の側・z=0 がプリンタのベッド）の中心。下面につばが入るくぼみ（深さ＝つば − 押さえしろ）。
+    くぼみの天井は幅 3mm ほどの輪のブリッジなので、サポートなしで刷れる。左右の横桟・前の横桟に当たらないよう平らに切る。"""
+    _, _, _, fd, ft = BEARINGS[model]
+    rec_r, rec_h = fd / 2 + clearance, ft - RING_PRESS
+    if t < rec_h + 1:
+        raise ValueError("sea_bearing_ring: 厚みは つばの厚み＋1mm 以上にしてください")
+    hole_r = hole_dia(RING_SCREW) / 2
+    for x, y in ring_screws():
+        if abs(x) + RING_HEAD > clip_x or y - RING_HEAD < -clip_front:
+            raise ValueError("sea_bearing_ring: 平らに切る位置がネジの頭にかかります（前のすき間を広げてください）")
+    if clip_front < rec_r + 0.8:
+        raise ValueError("sea_bearing_ring: 前を切る位置が、つばのくぼみに近すぎます")
+    outline = Circle(RING_R) & Rectangle(2 * clip_x, 2 * RING_R)
+    outline &= Pos(0, (RING_R - clip_front) / 2) * Rectangle(2 * RING_R, RING_R + clip_front)
+    outline -= Circle(RING_ID / 2)
+    for x, y in ring_screws():
+        outline -= Pos(x, y) * Circle(hole_r)
+    solid = extrude(outline, t) - Cylinder(rec_r, rec_h, align=CENTER_Z0)
+    depth = t + RING_PRESS + plate_t  # ボルトが通る厚み：リング＋押さえしろのすき間＋板
+    anchors = [Anchor(f"hole{i}", (x, y, t), (0, 0, 1), "hole", depth=depth, size=RING_SCREW) for i, (x, y) in enumerate(ring_screws())]
+    return Geometry(solid=solid, anchors=anchors + [Anchor("bottom", (0, 0, 0), (0, 0, -1), "face")])
+
+
+@component(
     "sea_plate",
     label="sea 天板・底板",
     category="plate",
@@ -214,18 +330,21 @@ def build_window(w, h, win_w, win_h, win_r, mat, holes) -> Geometry:
         Param("r", float, 4.0, min=0, label="角R"),
         Param("axle_x", float, 12.0, label="軸の穴の位置（板の中心から X）"),
         Param("axle_y", float, 0.0, label="軸の穴の位置（板の中心から Y）"),
-        Param("axle_hole", float, AXLE + 1, min=1, label="軸の穴の直径（モーター側はインローが通る大きさ）"),
+        Param("axle_hole", float, AXLE + 1, min=1, label="軸の穴の直径（ベアリングの穴・モーター側はインローが通る大きさ）"),
         flat.MAT,
         Param("holes", list, [], unit="", label="ネジ穴 [[x, y, サイズ], ...]"),
+        Param("ring_holes", list, [], unit="", label="ベアリング押さえのネジ穴 [[x, y, サイズ], ...]（ボルトは押さえ側で数える）"),
     ],
 )
-def build_plate(w, d, r, axle_x, axle_y, axle_hole, mat, holes) -> Geometry:
-    """箱の左右どちらかの端に付ける板。ローラーの軸を通す穴が1つ。軸の穴はネジ穴ではないので部品表に数えない。
+def build_plate(w, d, r, axle_x, axle_y, axle_hole, mat, holes, ring_holes) -> Geometry:
+    """箱の左右どちらかの端に付ける板。ローラーの軸（またはベアリング）を通す穴が1つ。軸の穴はネジ穴ではないので部品表に数えない。
     原点は板の中心・下面。"""
     if abs(axle_x) + axle_hole / 2 >= w / 2 or abs(axle_y) + axle_hole / 2 >= d / 2:
         raise ValueError("sea_plate: 軸の穴は板の中に入れてください")
     outline = RectangleRounded(w, d, r) if r > 0 else Rectangle(w, d)
     outline -= Pos(axle_x, axle_y) * Circle(axle_hole / 2)
+    for x, y, size in ring_holes:
+        outline -= Pos(x, y) * Circle(hole_dia(size) / 2)
     return flat.flat_geometry(outline, mat, holes, name="sea_plate")
 
 
@@ -281,30 +400,42 @@ def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_m
 
     # 天板・底板は材料を減らすため、左右の端（脚・横の横桟と、軸・モーターが乗るところ）だけの4枚にする。
     # 前後の横桟には端の近くの穴だけで留める（真ん中は板なし）
-    pw = w / 2 - xr + PLATE_REACH
-    plates = []
+    tp = materials.get(plate_mat).t
+    _, _, bw, _, ft = BEARINGS[BEARING]
+    # ベアリング押さえは、横の横桟（軸から r+8）と前の横桟（軸から r+lip+front_gap）の 0.5mm 手前で平らに切る
+    ring = make("sea_bearing_ring", clip_x=r + 8 - 0.5, clip_front=r + lip + front_gap - 0.5, plate_t=tp)
+    reach = max(PLATE_REACH, ring.params["clip_x"] + 1.5)  # 押さえが板に乗りきる幅
+    pw = w / 2 - xr + reach
+    plates, seats = [], []  # seats: ベアリングを置く (x, 板の上面の z, 名前)
     for sx, tag in ((-1, "l"), (1, "r")):
         xc = sx * (w / 2 - pw / 2)
-        top = make("sea_plate", w=pw, d=d, axle_x=sx * xr - xc, axle_y=yr, mat=plate_mat).at(xc, 0, h)
+        ax = sx * xr - xc
+        rh = [[ax + dx, yr + dy, RING_SCREW] for dx, dy in ring_screws()]
+        top = make("sea_plate", w=pw, d=d, axle_x=ax, axle_y=yr, axle_hole=BEARING_HOLE, mat=plate_mat).at(xc, 0, h)
         holes = frame_holes(top, frames)
-        # 底板は天板と同じ穴で、裏返して（上面をフレーム側に）下に付ける（裏返すと Y が逆になる）
-        bottom = top.with_params(holes=holes, axle_y=-yr).at(xc, 0, 0).rot(180, 0, 0)
+        # 底板は天板と同じ穴で、裏返して（上面をフレーム側に）下に付ける（裏返すと Y が逆になる）。
+        # 底板のベアリングはつばを板の上面（箱の内側）に載せ、押さえも内側から締める
+        bottom = top.with_params(holes=holes, axle_y=-yr, ring_holes=[[x, -y, sz] for x, y, sz in rh]).at(xc, 0, 0).rot(180, 0, 0)
         plates.append(bottom.named(f"bottom_{tag}"))
+        seats.append((sx * xr, 0.0, f"{tag}_bottom"))
         if motor and sx < 0:
-            # 左の天板の軸の穴はモーターのインローを通す大きさにして、まわりに M2 のねじ穴を4つ（下からモーターへ締める）
+            # 左の天板の軸の穴はモーターのインローを通す大きさにして、まわりに M2 のねじ穴を4つ（下からモーターへ締める）。
+            # ベアリングは付けない（上はモーター自身の軸受けが受ける）
             m = MOTOR_HOLES / 2
-            holes = holes + [[sx * xr - xc + mx * m, yr + my * m, "M2"] for mx in (-1, 1) for my in (-1, 1)]
-            top = top.with_params(axle_hole=MOTOR_PILOT + 0.5)
-        plates.append(top.with_params(holes=holes).named(f"top_{tag}"))
+            holes = holes + [[ax + mx * m, yr + my * m, "M2"] for mx in (-1, 1) for my in (-1, 1)]
+            top = top.with_params(holes=holes, axle_hole=MOTOR_PILOT + 0.5)
+        else:
+            top = top.with_params(holes=holes, ring_holes=rh)
+            seats.append((sx * xr, h + tp, f"{tag}_top"))
+        plates.append(top.named(f"top_{tag}"))
 
-    tp = materials.get(plate_mat).t
     rl = paper_h + 2 * PAPER_GAP + 2 * (lip + LIP_FLAT)
     hub = 8.0  # ローラー両端のハブ（止めネジで軸に留める）の長さ
     z_roll = zc - rl / 2 - hub  # ローラーの下端
     parts = frames + plates
     for sx, tag in ((-1, "l"), (1, "r")):
         roller = make("sea_roller", dia=roller_dia, length=rl, lip=lip, hub_len=hub)
-        axle_top = h + tp + 2  # 軸は天板の上に 2mm 出す
+        axle_top = h + tp + ft  # 軸の上端は、上のベアリングの上面にそろえる
         if motor and sx < 0:
             # 左のローラーは上のハブを天板の下 0.5mm まで伸ばし、モーターの軸（D カット）を止めネジ2本でつかむ。
             # Ø8 の軸は下から上のハブの中（モーターの軸の先の 3mm 手前）まで入れ、そのすぐ下を +Y 向きの止めネジでつかむ。
@@ -323,8 +454,17 @@ def build_box(w, d, h, profile, roller_dia, paper_h, margin, plate_mat, window_m
                 top_axle=top_axle, top_axle_screw=axle_screw, flex_slits=flex_slits,
             )
             axle_top = top0 + top_axle - 1
-        parts.append(make("shaft", dia=AXLE, length=axle_top + tp + 2).at(sx * xr, yr, -tp - 2).named(f"axle_{tag}"))
+        axle_bottom = ft - bw  # 軸の下端は、下のベアリングの下面にそろえる
+        parts.append(make("shaft", dia=AXLE, length=axle_top - axle_bottom).at(sx * xr, yr, axle_bottom).named(f"axle_{tag}"))
         parts.append(roller.at(sx * xr, yr, z_roll).named(f"roller_{tag}"))
+    # ベアリングと押さえ。下のベアリングには、内輪の上にワッシャーとセットカラーを載せて軸の重さを受ける
+    for x, z, tag in seats:
+        parts.append(make("flange_bearing", model=BEARING).at(x, yr, z).named(f"bearing_{tag}"))
+        parts.append(ring.at(x, yr, z + RING_PRESS).named(f"bearing_ring_{tag}"))
+        if tag.endswith("_bottom"):
+            side = tag.removesuffix("_bottom")
+            parts.append(make("washer").at(x, yr, z + ft).named(f"washer_{side}"))
+            parts.append(make("shaft_collar").at(x, yr, z + ft + WASHER[2]).named(f"collar_{side}"))
     if motor:
         if not MOTOR_OK:
             raise ValueError("sea_box: モーターの STEP がありません（PKP213D05A.stp を parts/vendor/ に置くか、モーターを外してください）")
